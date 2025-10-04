@@ -32,8 +32,8 @@ log("正在启动浏览器...")
 driver = webdriver.Chrome(options=chrome_options)
 
 # 打开登录页
-driver.get("https://passport.jlc.com/login?appId=JLC_OSHWHUB&redirectUrl=https%3A%2F%2Foshwhub.com%2Fsign_in")
-time.sleep(3)
+driver.get("https://oshwhub.com/sign_in")
+time.sleep(15)
 log("页面加载完成。")
 
 # 点击手机号登录
