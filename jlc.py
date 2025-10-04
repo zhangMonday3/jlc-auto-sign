@@ -31,7 +31,7 @@ wait = WebDriverWait(driver, 20)
 driver.get("https://oshwhub.com/sign_in")
 log("已打开 JLC 签到页，等待页面加载...")
 
-time.sleep(3)
+time.sleep(15)
 current_url = driver.current_url
 
 # 2️⃣ 如果自动跳转到了登录页
