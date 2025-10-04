@@ -22,9 +22,15 @@ chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_argument("--disable-gpu")
 chrome_options.add_argument("--window-size=1920,1080")
 chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+# 添加防检测选项
+chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+chrome_options.add_experimental_option('useAutomationExtension', False)
 
 log("正在启动浏览器...")
 driver = webdriver.Chrome(options=chrome_options)
+# 执行脚本来隐藏webdriver属性
+driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 wait = WebDriverWait(driver, 20)
 
 try:
@@ -70,74 +76,85 @@ try:
             driver.quit()
             sys.exit(1)
 
-        # 点击登录按钮 - 使用更稳定的定位方式
+        # 点击登录按钮 - 使用CSS选择器
         try:
-            # 方法1: 使用CSS选择器定位登录按钮
             login_btn = wait.until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "button.submit"))
             )
             login_btn.click()
-            log("已点击登录按钮（通过CSS选择器）。")
-        except:
-            try:
-                # 方法2: 使用包含特定类的button
-                login_btn = wait.until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "button.el-button--primary"))
-                )
-                login_btn.click()
-                log("已点击登录按钮（通过主按钮类）。")
-            except:
-                try:
-                    # 方法3: 使用XPath查找包含"登录"文本的button
-                    login_btn = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, '//button[.//span[contains(text(), "登录")]]'))
-                    )
-                    login_btn.click()
-                    log("已点击登录按钮（通过span文本）。")
-                except Exception as e:
-                    log(f"❌ 所有登录按钮定位方式都失败: {e}")
-                    # 保存页面源码用于调试
-                    with open("debug_page.html", "w", encoding="utf-8") as f:
-                        f.write(driver.page_source)
-                    log("已保存页面源码到 debug_page.html")
-                    driver.quit()
-                    sys.exit(1)
+            log("已点击登录按钮。")
+        except Exception as e:
+            log(f"❌ 登录按钮定位失败: {e}")
+            driver.quit()
+            sys.exit(1)
 
-        # 等待滑块验证码（如果出现）
+        # 等待并处理滑块验证码
         time.sleep(5)
         try:
-            slider = driver.find_element(By.ID, "nc_1_n1z")
-            track = driver.find_element(By.ID, "nc_1_n1t")
-
+            # 使用更稳定的选择器来定位滑块
+            slider = wait.until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
+            )
+            
+            # 获取滑块轨道
+            track = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".nc_scale"))
+            )
+            
+            # 获取轨道宽度
             track_width = track.size['width']
             slider_width = slider.size['width']
-            move_distance = track_width - slider_width
+            move_distance = track_width - slider_width - 10  # 稍微减少一点距离确保不会过头
+            
             log(f"检测到滑块验证码，滑动距离约 {move_distance}px。")
-
+            
+            # 创建动作链
             actions = ActionChains(driver)
+            
+            # 点击并按住滑块
             actions.click_and_hold(slider).perform()
-
-            # 更平滑的滑动
-            for i in range(50):
-                actions.move_by_offset(move_distance / 50, 0).perform()
-                time.sleep(0.03)
-
+            time.sleep(0.5)
+            
+            # 分段滑动，模拟人类行为
+            # 先快速滑动大部分距离
+            quick_steps = int(move_distance * 0.7)
+            for i in range(quick_steps):
+                if i % 10 == 0:  # 每10步稍微停顿一下
+                    time.sleep(0.01)
+                actions.move_by_offset(1, 0).perform()
+            
+            time.sleep(0.2)
+            
+            # 然后慢速滑动剩余距离
+            slow_steps = move_distance - quick_steps
+            for i in range(slow_steps):
+                if i % 3 == 0:  # 更频繁的微小停顿
+                    time.sleep(0.02)
+                # 添加微小的垂直偏移模拟人类手抖
+                y_offset = 0
+                if i % 5 == 0:
+                    y_offset = 1 if i % 2 == 0 else -1
+                actions.move_by_offset(1, y_offset).perform()
+            
+            # 释放滑块
             actions.release().perform()
             log("滑块拖动完成。")
-            time.sleep(5)
             
-            # 检查滑块是否成功
+            # 等待验证结果
+            time.sleep(3)
+            
+            # 检查验证是否成功
             try:
-                success_msg = driver.find_element(By.ID, "nc_1__scale_text")
-                if "通过" in success_msg.text or "验证成功" in success_msg.text:
-                    log("滑块验证成功。")
+                success_element = driver.find_element(By.CSS_SELECTOR, ".scale_text")
+                if "验证通过" in success_element.text or "成功" in success_element.text:
+                    log("✅ 滑块验证成功！")
                 else:
-                    log("滑块验证可能失败。")
+                    log(f"滑块验证状态: {success_element.text}")
             except:
-                log("无法获取滑块验证结果。")
+                log("无法获取验证结果文本。")
                 
         except Exception as e:
-            log(f"未检测到滑块验证码: {e}")
+            log(f"未检测到滑块验证码或验证失败: {e}")
 
         # 登录后等待跳转回签到页
         log("等待登录跳转...")
@@ -156,8 +173,11 @@ try:
     time.sleep(5)
 
     # 刷新页面确保在正确的页面
-    driver.refresh()
-    time.sleep(3)
+    try:
+        driver.refresh()
+        time.sleep(3)
+    except:
+        log("刷新页面失败，继续执行。")
 
     # 4️⃣ 点击"立即签到"
     try:
