@@ -209,31 +209,53 @@ def sign_in_account(username, password, account_index, total_accounts):
                     log(f"账号 {account_index} - 直接跳转到金豆页面")
                     time.sleep(8)
 
-                signed = False
+                # 合并后的金豆签到逻辑
                 try:
-                    # 精确匹配 "立即签到" 的按钮
-                    immediate_sign_btn = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, '//uni-button[contains(text(),"立即签到")]'))
-                    )
-                    immediate_sign_btn.click()
-                    log(f"账号 {account_index} - 已点击'立即签到'（金豆）。")
-                    signed = True
-                except Exception as e:
-                    log(f"账号 {account_index} - 未找到'立即签到'按钮: {e}")
+                    signed = False
 
-                if not signed:
+                    # 优先处理弹窗里的"立即签到"
                     try:
-                        sign_div = wait.until(
-                            EC.element_to_be_clickable((By.XPATH, '//div[@class="sign" and contains(text(),"签到")]'))
+                        immediate_sign_btn = wait.until(
+                            EC.element_to_be_clickable((By.XPATH, '//uni-button[contains(text(),"立即签到")]'))
                         )
-                        sign_div.click()
-                        log(f"账号 {account_index} - 已点击'签到'（金豆）。")
+                        immediate_sign_btn.click()
+                        log(f"账号 {account_index} - 已点击弹窗内的'立即签到'。")
                         signed = True
                     except Exception as e:
-                        log(f"账号 {account_index} - ⚠ 未找到备用签到按钮: {e}")
+                        log(f"账号 {account_index} - 未找到弹窗内'立即签到'按钮: {e}")
 
-                if signed:
-                    gb_success = True
+                    # 如果没有立即签到，尝试页面上的"签到"
+                    if not signed:
+                        try:
+                            # 先确保遮罩消失
+                            wait.until_not(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, "div.base-popup__mask"))
+                            )
+                            sign_div = wait.until(
+                                EC.element_to_be_clickable((By.XPATH, '//div[@class="sign" and contains(text(),"签到")]'))
+                            )
+                            sign_div.click()
+                            log(f"账号 {account_index} - 已点击页面上的'签到'按钮。")
+                            signed = True
+                        except Exception as e:
+                            log(f"账号 {account_index} - ⚠ 未找到页面签到入口: {e}")
+
+                    # 捕获"今天已签过了"
+                    try:
+                        already_signed = driver.find_element(
+                            By.XPATH, '//div[contains(text(),"今天已签过了")]'
+                        )
+                        if already_signed:
+                            log(f"账号 {account_index} - 今天已签过了，无需再次签到。")
+                            gb_success = True
+                    except:
+                        pass
+
+                    if signed:
+                        gb_success = True
+
+                except Exception as e:
+                    log(f"账号 {account_index} - ❌ 金豆签到流程异常: {e}")
 
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 金豆签到流程中发生错误: {e}")
