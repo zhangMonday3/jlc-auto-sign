@@ -13,6 +13,15 @@ from selenium.webdriver.support import expected_conditions as EC
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
+def save_debug_screenshot(driver, account_index, description):
+    """保存调试截图"""
+    try:
+        filename = f"debug_account_{account_index}_{description}_{int(time.time())}.png"
+        driver.save_screenshot(filename)
+        log(f"账号 {account_index} - 已保存调试截图: {filename}")
+    except Exception as e:
+        log(f"账号 {account_index} - 无法保存调试截图: {e}")
+
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行开源平台积分签到和金豆签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
@@ -211,7 +220,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - 已跳转到手机网页版嘉立创我的页面，等待加载...")
                 time.sleep(6)
 
-                # 如果有“登录/注册”按钮，说明未登录（你上传的页面里有该按钮）。:contentReference[oaicite:3]{index=3}
+                # 如果有"登录/注册"按钮，说明未登录
                 try:
                     login_register_btn = driver.find_element(By.CSS_SELECTOR, "uni-button.login-btn")
                     if login_register_btn and login_register_btn.is_displayed():
@@ -223,7 +232,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 except:
                     log(f"账号 {account_index} - 未检测到'登录/注册'，继续金豆签到流程。")
 
-                # 先尝试点击“金豆数”入口（你页面里有该文字）。:contentReference[oaicite:4]{index=4}
+                # 先尝试点击"金豆数"入口
                 try:
                     gold_bean_span = wait.until(
                         EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"金豆数")]'))
@@ -254,12 +263,12 @@ def sign_in_account(username, password, account_index, total_accounts):
                 # 如果弹窗存在，优先在弹窗内查找各种按钮/提示
                 if popup:
                     try:
-                        # 1) 弹窗内是否显示“今天已签过了”
+                        # 1) 弹窗内是否显示"今天已签过了"
                         try:
                             already = popup.find_element(By.XPATH, ".//div[contains(normalize-space(.),'今天已签过了')]")
                             if already:
                                 log(f"账号 {account_index} - 弹窗显示：今天已签过了。")
-                                # 点击弹窗内“知道了”或关闭按钮（使遮罩消失）
+                                # 点击弹窗内"知道了"或关闭按钮（使遮罩消失）
                                 try:
                                     ok_btn = popup.find_element(By.XPATH, ".//*[contains(normalize-space(.),'知道了') or contains(normalize-space(.),'确定')]")
                                     ok_btn.click()
@@ -279,10 +288,10 @@ def sign_in_account(username, password, account_index, total_accounts):
                                 except:
                                     time.sleep(1)
                         except Exception:
-                            # 没有“今天已签过了”的提示，继续寻找“立即签到”
+                            # 没有"今天已签过了"的提示，继续寻找"立即签到"
                             pass
 
-                        # 2) 弹窗内是否存在“立即签到”按钮（文本匹配任意子节点）
+                        # 2) 弹窗内是否存在"立即签到"按钮（文本匹配任意子节点）
                         if not gb_success:
                             try:
                                 immediate_btn = popup.find_element(By.XPATH, ".//*[contains(normalize-space(.),'立即签到')]")
