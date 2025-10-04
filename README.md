@@ -57,3 +57,4 @@
 
 ## 致谢  
 本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！
+欢迎提交issue和PR，如果本项目对你有帮助，请给我点个star~
