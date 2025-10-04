@@ -24,7 +24,6 @@ def sign_in_account(username, password, account_index, total_accounts):
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
-    # 添加防检测选项
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -37,14 +36,14 @@ def sign_in_account(username, password, account_index, total_accounts):
     account_success = False
 
     try:
-        # 1️⃣ 打开签到页
+        # 1. 打开签到页
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页，等待页面加载...")
 
         time.sleep(10 + random.randint(1, 5))  # 随机等待时间
         current_url = driver.current_url
 
-        # 2️⃣ 如果自动跳转到了登录页
+        # . 如果自动跳转到了登录页
         if "passport.jlc.com/login" in current_url:
             log(f"账号 {account_index} - 检测到未登录状态，正在执行登录流程...")
 
@@ -78,7 +77,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - ❌ 登录输入框未找到: {e}")
                 return False
 
-            # 点击登录按钮 - 使用CSS选择器
+            # 点击登录按钮
             try:
                 login_btn = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, "button.submit"))
@@ -155,7 +154,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     log(f"账号 {account_index} - 无法获取验证结果文本。")
                     
             except Exception as e:
-                log(f"账号 {account_index} - 未检测到滑块验证码或验证失败: {e}")
+                log(f"账号 {account_index} - 未检测到滑块验证码或已验证成功/失败: {e}")
 
             # 登录后等待跳转回签到页
             log(f"账号 {account_index} - 等待登录跳转...")
@@ -169,7 +168,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行签到流程。")
 
-        # 3️⃣ 等待签到页加载
+        # 3. 等待签到页加载
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(3 + random.randint(1, 3))
 
