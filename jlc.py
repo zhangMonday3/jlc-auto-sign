@@ -42,7 +42,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开开源平台积分签到页，等待页面加载...")
 
-        time.sleep(8)
+        time.sleep(10 + random.randint(1, 5))  # 随机等待时间
         current_url = driver.current_url
 
         # 2. 检查是否需要登录
@@ -210,8 +210,8 @@ def sign_in_account(username, password, account_index, total_accounts):
             try:
                 # 跳转到我的页面
                 driver.get("https://m.jlc.com/pages/my/index")
-                log(f"账号 {account_index} - 已跳转到手机网页版嘉立创我的页面，等待加载...")
-                time.sleep(8)  # 等待加载8秒
+                log(f"账号 {account_index} - 已跳转到我的页面，等待加载...")
+                time.sleep(10)  # 等待加载10秒
 
                 # 检查是否有"点击登录/注册"按钮
                 try:
@@ -220,7 +220,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     )
                     login_register_btn.click()
                     log(f"账号 {account_index} - 已点击'登录/注册'按钮。")
-                    time.sleep(8)  # 等待10秒
+                    time.sleep(10)  # 等待10秒
 
                     # 点击"进入系统"按钮
                     enter_system_btn = wait.until(
@@ -229,7 +229,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     if "进入系统" in enter_system_btn.text:
                         enter_system_btn.click()
                         log(f"账号 {account_index} - 已点击'进入系统'按钮。")
-                        time.sleep(8)  # 等待8秒
+                        time.sleep(10)  # 等待10秒
                 except Exception as e:
                     log(f"账号 {account_index} - 未检测到'登录/注册'按钮或已登录，继续下一步: {e}")
 
@@ -240,7 +240,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     )
                     gold_bean_span.click()
                     log(f"账号 {account_index} - 已点击'金豆数'。")
-                    time.sleep(8)  # 等待8秒
+                    time.sleep(10)  # 等待10秒
                 except Exception as e:
                     log(f"账号 {account_index} - ⚠ 未找到'金豆数'元素: {e}")
                     raise  # 抛出异常进入外层except
@@ -271,18 +271,33 @@ def sign_in_account(username, password, account_index, total_accounts):
                         log(f"账号 {account_index} - ⚠ 未找到'签到'元素: {e}")
                         raise  # 抛出异常进入外层except
 
-                # 等待5秒后检查是否"今天已签过了"
-                time.sleep(5)
+                # 等待10秒
+                time.sleep(10)
+
+                # 检查签到结果
                 try:
-                    already_signed_div = driver.find_element(By.CSS_SELECTOR, "div.title")
-                    if "今天已签过了" in already_signed_div.text:
+                    result_div = driver.find_element(By.CSS_SELECTOR, "div.title")
+                    result_text = result_div.text
+                    if "今天已签过了" in result_text:
                         log(f"账号 {account_index} - ✅ 金豆签到今天已经完成！")
                         gb_success = True
+                    elif "签到成功" in result_text or "获得" in result_text:
+                        log(f"账号 {account_index} - ✅ 金豆签到成功！ {result_text}")
+                        gb_success = True
+                    else:
+                        log(f"账号 {account_index} - ⚠ 金豆签到结果未知: {result_text}")
+                        gb_success = False
                 except Exception as e:
-                    log(f"账号 {account_index} - 未捕获到'今天已签过了'提示，跳过: {e}")
+                    log(f"账号 {account_index} - 未捕获到签到结果提示，假设失败: {e}")
+                    gb_success = False
 
-                if signed:
-                    gb_success = True
+                # 如果已点击但未检测到成功，保存截图调试
+                if signed and not gb_success:
+                    try:
+                        driver.save_screenshot(f"sign_result_account_{account_index}.png")
+                        log(f"账号 {account_index} - 已保存签到结果截图到 sign_result_account_{account_index}.png")
+                    except:
+                        log(f"账号 {account_index} - 无法保存签到结果截图")
 
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 金豆签到流程中发生错误: {e}")
