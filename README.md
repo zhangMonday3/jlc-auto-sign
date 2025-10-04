@@ -52,5 +52,8 @@
 
 ---
 
+### 成功运行结果
+![成功运行结果](img/6.jpg)
+
 ## 致谢  
 本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！
