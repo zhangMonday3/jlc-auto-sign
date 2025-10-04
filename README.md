@@ -1,11 +1,13 @@
-# 立创开源平台自动签到工具  
+# 嘉立创自动签到工具  
 *By zhangMonday*
 [立创开源平台](https://oshwhub.com/)
+[嘉立创金豆中心](https://activity.jlc.com/goods/goodsList?spm=JLC.MEMBER)
+
 
 ---
 
 ## 项目简介  
-该项目利用 **Github Actions** 实现立创开源平台每天自动化签到，支持多账号签到与过滑块验证。
+该项目利用 **Github Actions** 实现立创开源平台以及立创金豆的每天自动化签到，支持多账号签到与过滑块验证。
 
 ---
 
