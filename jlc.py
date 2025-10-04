@@ -208,62 +208,93 @@ def sign_in_account(username, password, account_index, total_accounts):
         # 5. 如果登录成功，执行金豆签到流程
         if login_success:
             try:
-                # 使用用户提供的新URL跳转到金豆页面
-                driver.get("https://m.jlc.com/pages-common/integral/index")
-                log(f"账号 {account_index} - 已跳转到金豆页面，等待加载...")
-                time.sleep(8)  # 等待页面加载
+                # 跳转到我的页面
+                driver.get("https://m.jlc.com/pages/my/index")
+                log(f"账号 {account_index} - 已跳转到手机网页版嘉立创我的页面，等待加载...")
+                time.sleep(8)  # 等待加载8秒
 
-                # 改进的签到按钮检测和点击
+                # 检查是否有"点击登录/注册"按钮
+                try:
+                    login_register_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "uni-button.login-btn"))
+                    )
+                    login_register_btn.click()
+                    log(f"账号 {account_index} - 已点击'登录/注册'按钮。")
+                    time.sleep(8)  # 等待8秒
+
+                    # 点击"进入系统"按钮
+                    enter_system_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "button.base-button--primary"))
+                    )
+                    if "进入系统" in enter_system_btn.text:
+                        enter_system_btn.click()
+                        log(f"账号 {account_index} - 已点击'进入系统'按钮。")
+                        time.sleep(8)  # 等待8秒
+                except Exception as e:
+                    log(f"账号 {account_index} - 未检测到'登录/注册'按钮或已登录，继续下一步: {e}")
+
+                # 点击"金豆数"
+                try:
+                    gold_bean_span = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"金豆数")]'))
+                    )
+                    gold_bean_span.click()
+                    log(f"账号 {account_index} - 已点击'金豆数'。")
+                    time.sleep(8)  # 等待8秒
+                except Exception as e:
+                    log(f"账号 {account_index} - ⚠ 未找到'金豆数'元素: {e}")
+                    # 如果点击金豆数失败，尝试直接访问金豆页面
+                    driver.get("https://m.jlc.com/pages-common/integral/index")
+                    log(f"账号 {account_index} - 直接跳转到金豆页面")
+                    time.sleep(8)
+
+                # 尝试点击"立即签到"或"签到"
                 signed = False
-                # 尝试多种签到按钮定位方式
-                sign_selectors = [
-                    '//uni-button[contains(@class,"text-btn") and contains(text(),"立即签到")]',
-                    '//button[contains(text(),"立即签到")]',
-                    '//div[contains(@class,"sign") and contains(text(),"签到")]',
-                    '//div[contains(text(),"签到")]'
-                ]
-                
-                for selector in sign_selectors:
-                    try:
-                        # 等待并点击签到按钮
-                        sign_element = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((By.XPATH, selector))
-                        )
-                        sign_element.click()
-                        log(f"账号 {account_index} - 已点击签到按钮。")
+                try:
+                    immediate_sign_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "uni-button.text-btn"))
+                    )
+                    if "立即签到" in immediate_sign_btn.text:
+                        immediate_sign_btn.click()
+                        log(f"账号 {account_index} - 已点击'立即签到'（金豆）。")
                         signed = True
-                        time.sleep(5)  # 等待服务器响应和页面变化
-                        break  # 点击成功则跳出循环
-                    except Exception as e:
-                        continue  # 当前选择器找不到则尝试下一个
-                
-                # 根据点击后的页面反馈判断签到结果
-                if signed:
-                    # 点击后，检查是否有"今天已签过了"的提示，这表示今天曾成功签到过
+                except Exception as e:
+                    log(f"账号 {account_index} - 未找到'立即签到'按钮，尝试'签到': {e}")
+
+                if not signed:
                     try:
-                        already_signed_elements = driver.find_elements(By.XPATH, '//div[contains(text(),"今天已签过了")]')
-                        if already_signed_elements:
-                            log(f"账号 {account_index} - ✅ 金豆签到成功（今日已签过）！")
-                            gb_success = True
-                        else:
-                            # 如果没有明确提示，也认为点击操作已完成，依赖于操作本身的成功
-                            log(f"账号 {account_index} - ✅ 金豆签到操作已完成。")
-                            gb_success = True
+                        sign_div = wait.until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, "div.sign"))
+                        )
+                        if "签到" in sign_div.text:
+                            sign_div.click()
+                            log(f"账号 {account_index} - 已点击'签到'（金豆）。")
+                            signed = True
                     except Exception as e:
-                        log(f"账号 {account_index} - 签到结果检测失败，但已执行签到操作: {e}")
-                        gb_success = True  # 假设点击操作即代表请求已发送
-                else:
-                    log(f"账号 {account_index} - ❌ 未找到可点击的签到按钮，金豆签到流程可能失败。")
-                    gb_success = False
+                        log(f"账号 {account_index} - ⚠ 未找到'签到'元素: {e}")
+
+                # 等待5秒后检查是否"今天已签过了"
+                time.sleep(5)
+                try:
+                    already_signed_div = driver.find_element(By.CSS_SELECTOR, "div.title")
+                    if "今天已签过了" in already_signed_div.text:
+                        log(f"账号 {account_index} - ✅ 金豆签到今天已经完成！")
+                        gb_success = True
+                except Exception as e:
+                    log(f"账号 {account_index} - 未捕获到'今天已签过了'提示，跳过: {e}")
+
+                if signed:
+                    gb_success = True
 
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 金豆签到流程中发生错误: {e}")
+                gb_success = False
                 # 保存截图用于调试
                 try:
                     driver.save_screenshot(f"error_screenshot_account_{account_index}_gold_bean.png")
-                    log(f"账号 {account_index} - 已保存金豆签到错误截图。")
+                    log(f"账号 {account_index} - 已保存金豆签到错误截图到 error_screenshot_account_{account_index}_gold_bean.png")
                 except:
-                    log(f"账号 {account_index} - 无法保存金豆签到截图。")
+                    log(f"账号 {account_index} - 无法保存金豆签到截图")
 
     except Exception as e:
         log(f"账号 {account_index} - ❌ 程序执行过程中发生错误: {e}")
