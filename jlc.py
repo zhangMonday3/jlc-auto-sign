@@ -9,14 +9,12 @@ from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import requests
-import json
 
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 def sign_in_account(username, password, account_index, total_accounts):
-    """为单个账号执行签到流程和金豆领取流程"""
+    """为单个账号执行开源平台积分签到和金豆签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
     
     chrome_options = Options()
@@ -29,41 +27,39 @@ def sign_in_account(username, password, account_index, total_accounts):
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_experimental_option('perfLoggingPrefs', {'enableNetwork': True})
-    chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
 
     driver = webdriver.Chrome(options=chrome_options)
     # 执行脚本来隐藏webdriver属性
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     wait = WebDriverWait(driver, 20)
     
-    account_success = False
-    gold_bean_success = False
+    account_success = False  # 开源平台积分签到成功标志
+    login_success = False    # 登录成功标志，初始为False
 
     try:
-        # 1. 打开签到页
+        # 1. 打开开源平台积分签到页
         driver.get("https://oshwhub.com/sign_in")
-        log(f"账号 {account_index} - 已打开 JLC 签到页，等待页面加载...")
+        log(f"账号 {account_index} - 已打开开源平台积分签到页，等待页面加载...")
 
         time.sleep(10 + random.randint(1, 5))  # 随机等待时间
         current_url = driver.current_url
 
-        # 2. 如果自动跳转到了登录页
+        # 2. 检查是否需要登录
         if "passport.jlc.com/login" in current_url:
             log(f"账号 {account_index} - 检测到未登录状态，正在执行登录流程...")
 
             try:
-                # 点击"账号登录"
+                # 点击"账号登录"（如果存在）
                 phone_btn = wait.until(
                     EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"账号登录")]'))
                 )
                 phone_btn.click()
-                log(f"账号 {account_index} - 已切换账号登录。")
+                log(f"账号 {account_index} - 已切换到账号登录模式。")
                 time.sleep(2)
             except Exception as e:
                 log(f"账号 {account_index} - 账号登录按钮可能已默认选中或未找到: {e}")
 
-            # 输入账号
+            # 输入用户名和密码
             try:
                 user_input = wait.until(
                     EC.presence_of_element_located((By.XPATH, '//input[@placeholder="请输入手机号码 / 客户编号 / 邮箱"]'))
@@ -80,7 +76,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - 已输入密码。")
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 登录输入框未找到: {e}")
-                return False, False
+                return False
 
             # 点击登录按钮
             try:
@@ -91,12 +87,12 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - 已点击登录按钮。")
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 登录按钮定位失败: {e}")
-                return False, False
+                return False
 
             # 等待并处理滑块验证码
             time.sleep(5)
             try:
-                # 使用更稳定的选择器来定位滑块
+                # 定位滑块元素
                 slider = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
                 )
@@ -106,36 +102,33 @@ def sign_in_account(username, password, account_index, total_accounts):
                     EC.presence_of_element_located((By.CSS_SELECTOR, ".nc_scale"))
                 )
                 
-                # 获取轨道宽度
+                # 计算滑动距离
                 track_width = track.size['width']
                 slider_width = slider.size['width']
-                move_distance = track_width - slider_width - 10  # 稍微减少一点距离确保不会过头
+                move_distance = track_width - slider_width - 10  # 略微减少距离避免过头
                 
                 log(f"账号 {account_index} - 检测到滑块验证码，滑动距离约 {move_distance}px。")
                 
-                # 创建动作链
+                # 创建动作链模拟人类滑动
                 actions = ActionChains(driver)
                 
-                # 点击并按住滑块
+                # 按住滑块
                 actions.click_and_hold(slider).perform()
                 time.sleep(0.5)
                 
-                # 分段滑动，模拟人类行为
-                # 先快速滑动大部分距离
+                # 分段滑动：先快后慢，添加抖动
                 quick_steps = int(move_distance * 0.7)
                 for i in range(quick_steps):
-                    if i % 10 == 0:  # 每10步稍微停顿一下
+                    if i % 10 == 0:
                         time.sleep(0.01)
                     actions.move_by_offset(1, 0).perform()
                 
                 time.sleep(0.2)
                 
-                # 然后慢速滑动剩余距离
                 slow_steps = move_distance - quick_steps
                 for i in range(slow_steps):
-                    if i % 3 == 0:  # 更频繁的微小停顿
+                    if i % 3 == 0:
                         time.sleep(0.02)
-                    # 添加微小的垂直偏移模拟人类手抖
                     y_offset = 0
                     if i % 5 == 0:
                         y_offset = 1 if i % 2 == 0 else -1
@@ -159,167 +152,141 @@ def sign_in_account(username, password, account_index, total_accounts):
                     log(f"账号 {account_index} - 无法获取验证结果文本。")
                     
             except Exception as e:
-                log(f"账号 {account_index} - 未检测到滑块验证码或已验证成功/失败: {e}")
+                log(f"账号 {account_index} - 未检测到滑块验证码或处理失败: {e}")
 
-            # 登录后等待跳转回签到页
+            # 等待登录后跳转回开源平台积分签到页
             log(f"账号 {account_index} - 等待登录跳转...")
             for i in range(20):
                 current_url = driver.current_url
                 if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
-                    log(f"账号 {account_index} - 成功跳转回签到页面。")
+                    log(f"账号 {account_index} - ✅ 成功跳转回开源平台积分签到页面，登录成功。")
+                    login_success = True
                     break
                 log(f"账号 {account_index} - 等待跳转... ({i+1}/20) 当前URL: {current_url}")
                 time.sleep(2)
             else:
-                log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行签到流程。")
+                log(f"账号 {account_index} - ⚠ 跳转超时，登录可能失败，继续尝试开源平台积分签到。")
 
-        # 3. 等待签到页加载
-        log(f"账号 {account_index} - 等待签到页加载...")
+        else:
+            # 未跳转到登录页，假设已登录
+            log(f"账号 {account_index} - 未检测到登录页，假设已登录。")
+            login_success = True
+
+        # 3. 等待开源平台积分签到页加载
+        log(f"账号 {account_index} - 等待开源平台积分签到页加载...")
         time.sleep(3 + random.randint(1, 3))
 
-        # 刷新页面确保在正确的页面
+        # 刷新页面确保正确加载
         try:
             driver.refresh()
             time.sleep(3)
         except:
             log(f"账号 {account_index} - 刷新页面失败，继续执行。")
 
-        # 4️⃣ 点击"立即签到"
+        # 4. 执行开源平台积分签到
         try:
             sign_btn = wait.until(
                 EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
             )
             sign_btn.click()
-            log(f"账号 {account_index} - ✅ 签到成功！")
+            log(f"账号 {account_index} - ✅ 开源平台积分签到成功！")
             account_success = True
         except Exception as e:
-            log(f"账号 {account_index} - ⚠ 未找到签到按钮，可能已签到或页面结构变化: {e}")
-            # 检查是否已经签到
+            log(f"账号 {account_index} - ⚠ 未找到开源平台积分签到按钮，可能已签到或页面变化: {e}")
+            # 检查是否已签到
             try:
                 signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
-                log(f"账号 {account_index} - ✅ 今天已经签到过了！")
+                log(f"账号 {account_index} - ✅ 开源平台积分签到今天已经完成！")
                 account_success = True
             except:
-                log(f"账号 {account_index} - ❌ 签到失败，且未检测到已签到状态。")
+                log(f"账号 {account_index} - ❌ 开源平台积分签到失败，且未检测到已签到状态。")
                 account_success = False
 
         time.sleep(2)
 
-        if account_success:
-            # 获取 token 用于金豆签到
-            log(f"账号 {account_index} - 获取 secretkey 和 x-jlc-accesstoken...")
-            driver.get("https://m.jlc.com/mapp/pages/my/index")
-            time.sleep(10 + random.randint(1, 5))  # 等待页面加载并触发网络请求
+        # 5. 如果登录成功，执行金豆签到流程
+        if login_success:
+            try:
+                # 跳转到我的页面
+                driver.get("https://m.jlc.com/pages/my/index")
+                log(f"账号 {account_index} - 已跳转到我的页面，等待加载...")
+                time.sleep(10)  # 等待加载10秒
 
-            # 获取性能日志
-            logs = driver.get_log('performance')
-            requests_dict = {}
-            for entry in logs:
+                # 检查是否有"点击登录/注册"按钮
                 try:
-                    msg = json.loads(entry['message'])['message']
-                    if msg['method'] == 'Network.requestWillBeSent':
-                        request_id = msg['params']['requestId']
-                        url = msg['params']['request']['url']
-                        requests_dict[request_id] = {'url': url, 'headers': {}}
-                    elif msg['method'] == 'Network.requestWillBeSentExtraInfo':
-                        request_id = msg['params']['requestId']
-                        if request_id in requests_dict:
-                            requests_dict[request_id]['headers'] = msg['params']['headers']
+                    login_register_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "uni-button.login-btn"))
+                    )
+                    login_register_btn.click()
+                    log(f"账号 {account_index} - 已点击'登录/注册'按钮。")
+                    time.sleep(10)  # 等待10秒
+
+                    # 点击"进入系统"按钮
+                    enter_system_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "button.base-button--primary"))
+                    )
+                    if "进入系统" in enter_system_btn.text:
+                        enter_system_btn.click()
+                        log(f"账号 {account_index} - 已点击'进入系统'按钮。")
+                        time.sleep(10)  # 等待10秒
+                except Exception as e:
+                    log(f"账号 {account_index} - 未检测到'登录/注册'按钮或已登录，继续下一步: {e}")
+
+                # 点击"金豆数"
+                try:
+                    gold_bean_span = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"金豆数")]'))
+                    )
+                    gold_bean_span.click()
+                    log(f"账号 {account_index} - 已点击'金豆数'。")
+                    time.sleep(10)  # 等待10秒
+                except Exception as e:
+                    log(f"账号 {account_index} - ⚠ 未找到'金豆数'元素: {e}")
+                    raise  # 抛出异常进入外层except
+
+                # 尝试点击"立即签到"或"签到"
+                signed = False
+                try:
+                    immediate_sign_btn = wait.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "uni-button.text-btn"))
+                    )
+                    if "立即签到" in immediate_sign_btn.text:
+                        immediate_sign_btn.click()
+                        log(f"账号 {account_index} - 已点击'立即签到'（金豆）。")
+                        signed = True
+                except Exception as e:
+                    log(f"账号 {account_index} - 未找到'立即签到'按钮，尝试'签到': {e}")
+
+                if not signed:
+                    try:
+                        sign_div = wait.until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, "div.sign"))
+                        )
+                        if "签到" in sign_div.text:
+                            sign_div.click()
+                            log(f"账号 {account_index} - 已点击'签到'（金豆）。")
+                            signed = True
+                    except Exception as e:
+                        log(f"账号 {account_index} - ⚠ 未找到'签到'元素: {e}")
+                        raise  # 抛出异常进入外层except
+
+                # 等待5秒后检查是否"今天已签过了"
+                time.sleep(5)
+                try:
+                    already_signed_div = driver.find_element(By.CSS_SELECTOR, "div.title")
+                    if "今天已签过了" in already_signed_div.text:
+                        log(f"账号 {account_index} - ✅ 金豆签到今天已经完成！")
+                except Exception as e:
+                    log(f"账号 {account_index} - 未捕获到'今天已签过了'提示，跳过: {e}")
+
+            except Exception as e:
+                log(f"账号 {account_index} - ❌ 金豆签到流程中发生错误: {e}")
+                # 保存截图用于调试
+                try:
+                    driver.save_screenshot(f"error_screenshot_account_{account_index}_gold_bean.png")
+                    log(f"账号 {account_index} - 已保存金豆签到错误截图到 error_screenshot_account_{account_index}_gold_bean.png")
                 except:
-                    pass
-
-            secretkey = None
-            access_token = None
-            for req_data in requests_dict.values():
-                if 'selectSmtOrderData' in req_data['url']:
-                    headers_log = req_data['headers']
-                    secretkey = headers_log.get('secretkey')
-                    access_token = headers_log.get('x-jlc-accesstoken')
-                    if secretkey and access_token:
-                        log(f"账号 {account_index} - ✅ 成功获取 token: secretkey={secretkey}, access_token={access_token}")
-                        break
-
-            if secretkey and access_token:
-                # 执行金豆签到流程
-                base_url = 'https://m.jlc.com'
-                headers = {
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'x-jlc-clienttype': 'WEB',
-                    'accept': 'application/json, text/plain, */*',
-                    'Referer': 'https://m.jlc.com/mapp/pages/my/index',
-                    'x-jlc-accesstoken': access_token,
-                    'secretkey': secretkey,
-                }
-
-                # 获取用户信息
-                try:
-                    response = requests.get(f"{base_url}/api/appPlatform/center/setting/selectPersonalInfo", headers=headers)
-                    data = response.json()
-                    if data.get('success'):
-                        log(f"账号 {account_index} - 昵称：{data['data']['customerCode']}")
-                    else:
-                        log(f"账号 {account_index} - 获取用户信息失败: {data.get('message')}")
-                except Exception as e:
-                    log(f"账号 {account_index} - 获取用户信息异常: {e}")
-
-                time.sleep(random.uniform(1, 1.5))
-
-                # 检测签到
-                try:
-                    response = requests.get(f"{base_url}/api/activity/sign/getCurrentUserSignInConfig", headers=headers)
-                    data = response.json()
-                    if data.get('success'):
-                        if data['data']['haveSignIn']:
-                            log(f"账号 {account_index} - 今日已签到（金豆）")
-                        else:
-                            time.sleep(random.uniform(2, 2.5))
-                            # 执行签到
-                            sign_response = requests.get(f"{base_url}/api/activity/sign/signIn?source=4", headers=headers)
-                            sign_data = sign_response.json()
-                            if sign_data.get('success'):
-                                if not sign_data['data'].get('gainNum'):
-                                    log(f"账号 {account_index} - 有奖励可领取，先领取奖励，默认选择类型2：金豆")
-                                    time.sleep(random.uniform(1, 2))
-                                    # 领取奖励
-                                    receive_response = requests.get(f"{base_url}/api/activity/sign/receiveVoucher", headers=headers)
-                                    receive_data = receive_response.json()
-                                    if receive_data.get('success'):
-                                        log(f"账号 {account_index} - 领取成功")
-                                        time.sleep(random.uniform(1, 2))
-                                        # 再次签到
-                                        sign_response = requests.get(f"{base_url}/api/activity/sign/signIn?source=4", headers=headers)
-                                        sign_data = sign_response.json()
-                                        if sign_data.get('success') and sign_data['data'].get('gainNum'):
-                                            log(f"账号 {account_index} - 签到成功，金豆+{sign_data['data']['gainNum']}")
-                                            gold_bean_success = True
-                                        else:
-                                            log(f"账号 {account_index} - 二次签到失败: {sign_data.get('message')}")
-                                    else:
-                                        log(f"账号 {account_index} - 领取奖励失败: {receive_data.get('message')}")
-                                else:
-                                    log(f"账号 {account_index} - 签到成功，金豆+{sign_data['data']['gainNum']}")
-                                    gold_bean_success = True
-                            else:
-                                log(f"账号 {account_index} - 签到失败: {sign_data.get('message')}")
-                    else:
-                        log(f"账号 {account_index} - 检测签到失败: {data.get('message')}")
-                except Exception as e:
-                    log(f"账号 {account_index} - 签到流程异常: {e}")
-
-                time.sleep(random.uniform(1, 1.5))
-
-                # 获取金豆
-                try:
-                    response = requests.get(f"{base_url}/api/activity/front/getCustomerIntegral", headers=headers)
-                    data = response.json()
-                    if data.get('success'):
-                        log(f"账号 {account_index} - 当前金豆：{data['data']['integralVoucher']}")
-                    else:
-                        log(f"账号 {account_index} - 获取金豆失败: {data.get('message')}")
-                except Exception as e:
-                    log(f"账号 {account_index} - 获取金豆异常: {e}")
-            else:
-                log(f"账号 {account_index} - ❌ 未获取到 secretkey 或 x-jlc-accesstoken")
+                    log(f"账号 {account_index} - 无法保存金豆签到截图")
 
     except Exception as e:
         log(f"账号 {account_index} - ❌ 程序执行过程中发生错误: {e}")
@@ -334,7 +301,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.quit()
         log(f"账号 {account_index} - 浏览器已关闭。")
     
-    return account_success, gold_bean_success
+    return account_success  # 返回开源平台积分签到成功标志
 
 def main():
     if len(sys.argv) < 3:
@@ -362,32 +329,23 @@ def main():
     log(f"开始处理 {total_accounts} 个账号的签到任务")
     
     success_count = 0
-    gold_bean_success_count = 0
     failed_accounts = []
-    failed_gold_bean_accounts = []
     
     # 依次处理每个账号
     for i, (username, password) in enumerate(zip(usernames, passwords), 1):
         log(f"开始处理第 {i} 个账号")
         
-        # 执行签到和金豆流程
-        success, gold_success = sign_in_account(username, password, i, total_accounts)
+        # 执行签到
+        success = sign_in_account(username, password, i, total_accounts)
         
         if success:
             success_count += 1
-            log(f"✅ 第 {i} 个账号积分签到成功")
+            log(f"✅ 第 {i} 个账号开源平台积分签到成功")
         else:
             failed_accounts.append(i)
-            log(f"❌ 第 {i} 个账号积分签到失败")
+            log(f"❌ 第 {i} 个账号开源平台积分签到失败")
         
-        if gold_success:
-            gold_bean_success_count += 1
-            log(f"✅ 第 {i} 个账号金豆签到成功")
-        else:
-            failed_gold_bean_accounts.append(i)
-            log(f"❌ 第 {i} 个账号金豆签到失败")
-        
-        # 如果不是最后一个账号，等待随机时间再处理下一个
+        # 如果不是最后一个账号，等待随机时间
         if i < total_accounts:
             wait_time = random.randint(10, 30)
             log(f"等待 {wait_time} 秒后处理下一个账号...")
@@ -397,17 +355,13 @@ def main():
     log("=" * 50)
     log("签到任务完成总结:")
     log(f"总账号数: {total_accounts}")
-    log(f"积分签到成功数: {success_count}")
-    log(f"积分签到失败数: {len(failed_accounts)}")
-    if failed_accounts:
-        log(f"积分签到失败的账号序号: {', '.join(map(str, failed_accounts))}")
+    log(f"开源平台积分签到成功数: {success_count}")
+    log(f"开源平台积分签到失败数: {len(failed_accounts)}")
     
-    log(f"金豆签到成功数: {gold_bean_success_count}")
-    log(f"金豆签到失败数: {len(failed_gold_bean_accounts)}")
-    if failed_gold_bean_accounts:
-        log(f"金豆签到失败的账号序号: {', '.join(map(str, failed_gold_bean_accounts))}")
+    if failed_accounts:
+        log(f"开源平台积分签到失败的账号序号: {', '.join(map(str, failed_accounts))}")
     else:
-        log("✅ 所有账号签到成功!")
+        log("✅ 所有账号开源平台积分签到成功!")
     log("=" * 50)
 
 if __name__ == "__main__":
