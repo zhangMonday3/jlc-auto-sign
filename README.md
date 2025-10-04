@@ -26,7 +26,7 @@
    - **Name**: `JLC_PASSWORD`  
      **Value**: 你的嘉立创登录密码，多账号用英文逗号分割，要和账号一一对应
 
-![步骤2](img/2.png)
+![步骤2](img/2.jpg)
 
 ---
 
@@ -34,7 +34,7 @@
 1. 在你 Fork 的 GitHub 仓库中点击 **Actions**  
 2. 按照图示方法启用 GitHub Actions
 
-![步骤3](img/3.jpg)
+![步骤3](img/3.png)
 
 3. 点击 **Run workflow** 手动触发一次，如果运行结束出现绿色对勾则为成功
 
