@@ -41,13 +41,13 @@ if "passport.jlc.com/login" in current_url:
     try:
         # 点击“手机号登录”
         phone_btn = wait.until(
-            EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"手机号登录")]'))
+            EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"账号登录")]'))
         )
         phone_btn.click()
-        log("已切换到手机号登录。")
+        log("已切换账号登录。")
         time.sleep(1)
     except:
-        log("手机号登录按钮可能已默认选中。")
+        log("账号登录按钮可能已默认选中。")
 
     # 输入账号
     try:
