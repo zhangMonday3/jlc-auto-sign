@@ -2,6 +2,7 @@ import sys
 import time
 import tempfile
 import random
+import shutil
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -26,13 +27,14 @@ def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行开源平台积分签到和金豆签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
     
+    profile_dir = tempfile.mkdtemp()
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+    chrome_options.add_argument(f"--user-data-dir={profile_dir}")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -376,6 +378,7 @@ def sign_in_account(username, password, account_index, total_accounts):
 
     finally:
         driver.quit()
+        shutil.rmtree(profile_dir, ignore_errors=True)
         log(f"账号 {account_index} - 浏览器已关闭。")
     
     return os_success, gb_success
