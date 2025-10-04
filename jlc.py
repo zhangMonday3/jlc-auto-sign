@@ -33,15 +33,16 @@ def sign_in_account(username, password, account_index, total_accounts):
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     wait = WebDriverWait(driver, 20)
     
-    account_success = False  # 开源平台积分签到成功标志
-    login_success = False    # 登录成功标志，初始为False
+    os_success = False  # 开源平台积分签到成功标志
+    gb_success = False  # 金豆签到成功标志
+    login_success = False  # 登录成功标志，初始为False
 
     try:
         # 1. 打开开源平台积分签到页
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开开源平台积分签到页，等待页面加载...")
 
-        time.sleep(10 + random.randint(1, 5))  # 随机等待时间
+        time.sleep(8)
         current_url = driver.current_url
 
         # 2. 检查是否需要登录
@@ -76,7 +77,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - 已输入密码。")
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 登录输入框未找到: {e}")
-                return False
+                return False, False
 
             # 点击登录按钮
             try:
@@ -87,7 +88,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - 已点击登录按钮。")
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 登录按钮定位失败: {e}")
-                return False
+                return False, False
 
             # 等待并处理滑块验证码
             time.sleep(5)
@@ -190,17 +191,17 @@ def sign_in_account(username, password, account_index, total_accounts):
             )
             sign_btn.click()
             log(f"账号 {account_index} - ✅ 开源平台积分签到成功！")
-            account_success = True
+            os_success = True
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 未找到开源平台积分签到按钮，可能已签到或页面变化: {e}")
             # 检查是否已签到
             try:
                 signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
                 log(f"账号 {account_index} - ✅ 开源平台积分签到今天已经完成！")
-                account_success = True
+                os_success = True
             except:
                 log(f"账号 {account_index} - ❌ 开源平台积分签到失败，且未检测到已签到状态。")
-                account_success = False
+                os_success = False
 
         time.sleep(2)
 
@@ -209,8 +210,8 @@ def sign_in_account(username, password, account_index, total_accounts):
             try:
                 # 跳转到我的页面
                 driver.get("https://m.jlc.com/pages/my/index")
-                log(f"账号 {account_index} - 已跳转到我的页面，等待加载...")
-                time.sleep(10)  # 等待加载10秒
+                log(f"账号 {account_index} - 已跳转到手机网页版嘉立创我的页面，等待加载...")
+                time.sleep(8)  # 等待加载8秒
 
                 # 检查是否有"点击登录/注册"按钮
                 try:
@@ -219,7 +220,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     )
                     login_register_btn.click()
                     log(f"账号 {account_index} - 已点击'登录/注册'按钮。")
-                    time.sleep(10)  # 等待10秒
+                    time.sleep(8)  # 等待10秒
 
                     # 点击"进入系统"按钮
                     enter_system_btn = wait.until(
@@ -228,7 +229,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     if "进入系统" in enter_system_btn.text:
                         enter_system_btn.click()
                         log(f"账号 {account_index} - 已点击'进入系统'按钮。")
-                        time.sleep(10)  # 等待10秒
+                        time.sleep(8)  # 等待8秒
                 except Exception as e:
                     log(f"账号 {account_index} - 未检测到'登录/注册'按钮或已登录，继续下一步: {e}")
 
@@ -239,7 +240,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     )
                     gold_bean_span.click()
                     log(f"账号 {account_index} - 已点击'金豆数'。")
-                    time.sleep(10)  # 等待10秒
+                    time.sleep(8)  # 等待8秒
                 except Exception as e:
                     log(f"账号 {account_index} - ⚠ 未找到'金豆数'元素: {e}")
                     raise  # 抛出异常进入外层except
@@ -276,11 +277,16 @@ def sign_in_account(username, password, account_index, total_accounts):
                     already_signed_div = driver.find_element(By.CSS_SELECTOR, "div.title")
                     if "今天已签过了" in already_signed_div.text:
                         log(f"账号 {account_index} - ✅ 金豆签到今天已经完成！")
+                        gb_success = True
                 except Exception as e:
                     log(f"账号 {account_index} - 未捕获到'今天已签过了'提示，跳过: {e}")
 
+                if signed:
+                    gb_success = True
+
             except Exception as e:
                 log(f"账号 {account_index} - ❌ 金豆签到流程中发生错误: {e}")
+                gb_success = False
                 # 保存截图用于调试
                 try:
                     driver.save_screenshot(f"error_screenshot_account_{account_index}_gold_bean.png")
@@ -301,7 +307,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.quit()
         log(f"账号 {account_index} - 浏览器已关闭。")
     
-    return account_success  # 返回开源平台积分签到成功标志
+    return os_success, gb_success
 
 def main():
     if len(sys.argv) < 3:
@@ -328,26 +334,35 @@ def main():
     total_accounts = len(usernames)
     log(f"开始处理 {total_accounts} 个账号的签到任务")
     
-    success_count = 0
-    failed_accounts = []
+    success_count_os = 0
+    success_count_gb = 0
+    failed_accounts_os = []
+    failed_accounts_gb = []
     
     # 依次处理每个账号
     for i, (username, password) in enumerate(zip(usernames, passwords), 1):
         log(f"开始处理第 {i} 个账号")
         
         # 执行签到
-        success = sign_in_account(username, password, i, total_accounts)
+        os_success, gb_success = sign_in_account(username, password, i, total_accounts)
         
-        if success:
-            success_count += 1
+        if os_success:
+            success_count_os += 1
             log(f"✅ 第 {i} 个账号开源平台积分签到成功")
         else:
-            failed_accounts.append(i)
+            failed_accounts_os.append(i)
             log(f"❌ 第 {i} 个账号开源平台积分签到失败")
+        
+        if gb_success:
+            success_count_gb += 1
+            log(f"✅ 第 {i} 个账号金豆签到成功")
+        else:
+            failed_accounts_gb.append(i)
+            log(f"❌ 第 {i} 个账号金豆签到失败")
         
         # 如果不是最后一个账号，等待随机时间
         if i < total_accounts:
-            wait_time = random.randint(10, 30)
+            wait_time = random.randint(5, 10)
             log(f"等待 {wait_time} 秒后处理下一个账号...")
             time.sleep(wait_time)
     
@@ -355,13 +370,19 @@ def main():
     log("=" * 50)
     log("签到任务完成总结:")
     log(f"总账号数: {total_accounts}")
-    log(f"开源平台积分签到成功数: {success_count}")
-    log(f"开源平台积分签到失败数: {len(failed_accounts)}")
-    
-    if failed_accounts:
-        log(f"开源平台积分签到失败的账号序号: {', '.join(map(str, failed_accounts))}")
+    log(f"开源平台积分签到成功数: {success_count_os}")
+    log(f"开源平台积分签到失败数: {len(failed_accounts_os)}")
+    if failed_accounts_os:
+        log(f"开源平台积分签到失败的账号序号: {', '.join(map(str, failed_accounts_os))}")
     else:
         log("✅ 所有账号开源平台积分签到成功!")
+    
+    log(f"金豆签到成功数: {success_count_gb}")
+    log(f"金豆签到失败数: {len(failed_accounts_gb)}")
+    if failed_accounts_gb:
+        log(f"金豆签到失败的账号序号: {', '.join(map(str, failed_accounts_gb))}")
+    else:
+        log("✅ 所有账号金豆签到成功!")
     log("=" * 50)
 
 if __name__ == "__main__":
