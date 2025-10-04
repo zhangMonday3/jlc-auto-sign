@@ -1,4 +1,4 @@
-name: selenium
+name: auto-signin
 
 on:
   workflow_dispatch:
