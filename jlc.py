@@ -43,7 +43,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         time.sleep(10 + random.randint(1, 5))  # 随机等待时间
         current_url = driver.current_url
 
-        # . 如果自动跳转到了登录页
+        # 2. 如果自动跳转到了登录页
         if "passport.jlc.com/login" in current_url:
             log(f"账号 {account_index} - 检测到未登录状态，正在执行登录流程...")
 
