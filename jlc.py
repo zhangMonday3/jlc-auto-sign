@@ -263,7 +263,7 @@ def navigate_and_interact_m_jlc(driver, account_index):
     log(f"账号 {account_index} - 在 m.jlc.com 进行交互操作...")
     
     try:
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        WebDriverWait(driver, 12).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         driver.execute_script("window.scrollTo(0, 300);")
         time.sleep(2)
         
@@ -334,7 +334,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
         
-        time.sleep(12 + random.randint(2, 5))
+        time.sleep(8 + random.randint(2, 5))
         current_url = driver.current_url
 
         # 2. 登录流程
@@ -383,7 +383,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 return result
 
             # 处理滑块验证
-            time.sleep(8)
+            time.sleep(6)
             try:
                 slider = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
@@ -537,7 +537,7 @@ def main():
         all_results.append(result)
         
         if i < total_accounts:
-            wait_time = random.randint(15, 40)
+            wait_time = random.randint(5, 10)
             log(f"等待 {wait_time} 秒后处理下一个账号...")
             time.sleep(wait_time)
     
