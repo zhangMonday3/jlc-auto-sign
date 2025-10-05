@@ -123,8 +123,9 @@ class JLCClient:
         }
         self.account_index = account_index
         self.message = ""
-        self.jindou_reward = 0  # 本次获得金豆
-        self.current_jindou = 0  # 当前金豆总数
+        self.initial_jindou = 0  # 签到前金豆数量
+        self.final_jindou = 0    # 签到后金豆数量
+        self.jindou_reward = 0   # 本次获得金豆（通过差值计算）
         self.sign_status = "未知"  # 签到状态
         
     def send_request(self, url, method='GET'):
@@ -158,6 +159,20 @@ class JLCClient:
             log(f"账号 {self.account_index} - ❌ 获取用户信息失败: {error_msg}")
             return False
     
+    def get_points(self):
+        """获取金豆数量"""
+        log(f"账号 {self.account_index} - 获取金豆数量...")
+        url = f"{self.base_url}/api/activity/front/getCustomerIntegral"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            jindou_count = data.get('data', {}).get('integralVoucher', 0)
+            log(f"账号 {self.account_index} - 当前金豆: {jindou_count}")
+            return jindou_count
+        else:
+            log(f"账号 {self.account_index} - ❌ 获取金豆数量失败")
+            return 0
+    
     def check_sign_status(self):
         """检查签到状态"""
         log(f"账号 {self.account_index} - 检查签到状态...")
@@ -190,8 +205,7 @@ class JLCClient:
             gain_num = data.get('data', {}).get('gainNum')
             if gain_num:
                 # 直接签到成功，获得金豆
-                self.jindou_reward = gain_num
-                log(f"账号 {self.account_index} - ✅ 签到成功，金豆+{gain_num}")
+                log(f"账号 {self.account_index} - ✅ 签到成功，签到使金豆+{gain_num}")
                 self.sign_status = "签到成功"
                 return True
             else:
@@ -227,19 +241,17 @@ class JLCClient:
             log(f"账号 {self.account_index} - ❌ 领取奖励失败: {error_msg}")
             return False
     
-    def get_points(self):
-        """获取金豆数量"""
-        log(f"账号 {self.account_index} - 获取金豆数量...")
-        url = f"{self.base_url}/api/activity/front/getCustomerIntegral"
-        data = self.send_request(url)
-        
-        if data and data.get('success'):
-            self.current_jindou = data.get('data', {}).get('integralVoucher', 0)
-            log(f"账号 {self.account_index} - 当前金豆: {self.current_jindou}")
-            return self.current_jindou
+    def calculate_jindou_difference(self):
+        """计算金豆差值"""
+        self.jindou_reward = self.final_jindou - self.initial_jindou
+        if self.jindou_reward > 0:
+            log(f"账号 {self.account_index} - 🎉 总金豆增加: {self.initial_jindou} → {self.final_jindou} (+{self.jindou_reward})")
+        elif self.jindou_reward == 0:
+            log(f"账号 {self.account_index} - ⚠ 总金豆无变化，可能是当天已经签到过: {self.initial_jindou} → {self.final_jindou} (0)")
         else:
-            log(f"账号 {self.account_index} - ❌ 获取金豆数量失败")
-            return 0
+            log(f"账号 {self.account_index} - ❗ 金豆减少: {self.initial_jindou} → {self.final_jindou} ({self.jindou_reward})")
+        
+        return self.jindou_reward
     
     def execute_full_process(self):
         """执行完整的金豆签到流程"""
@@ -251,23 +263,35 @@ class JLCClient:
         
         time.sleep(random.randint(1, 2))
         
-        # 2. 检查签到状态
+        # 2. 获取签到前金豆数量
+        log(f"账号 {self.account_index} - 获取签到前金豆数量...")
+        self.initial_jindou = self.get_points()
+        log(f"账号 {self.account_index} - 签到前金豆: {self.initial_jindou}")
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 3. 检查签到状态
         sign_status = self.check_sign_status()
         if sign_status is None:  # 检查失败
             return False
         elif sign_status:  # 已签到
             # 已签到，直接获取金豆数量
-            pass
+            log(f"账号 {self.account_index} - 今日已签到，跳过签到操作")
         else:  # 未签到
-            # 3. 执行签到
+            # 4. 执行签到
             time.sleep(random.randint(2, 3))
             if not self.sign_in():
                 return False
         
         time.sleep(random.randint(1, 2))
         
-        # 4. 获取金豆数量
-        self.get_points()
+        # 5. 获取签到后金豆数量
+        log(f"账号 {self.account_index} - 获取签到后金豆数量...")
+        self.final_jindou = self.get_points()
+        log(f"账号 {self.account_index} - 签到后金豆: {self.final_jindou}")
+        
+        # 6. 计算金豆差值
+        self.calculate_jindou_difference()
         
         return True
 
@@ -355,7 +379,7 @@ def get_user_nickname_from_api(driver, account_index):
                 nickname = data.get('result', {}).get('nickname', '')
                 if nickname:
                     formatted_nickname = format_nickname(nickname)
-                    log(f"账号 {account_index} - 👤 用户昵称: {formatted_nickname}")
+                    log(f"账号 {account_index} - 👤 昵称: {formatted_nickname}")
                     return formatted_nickname
         
         log(f"账号 {account_index} - ⚠ 无法获取用户昵称")
@@ -390,13 +414,14 @@ def sign_in_account(username, password, account_index, total_accounts):
     # 记录详细结果
     result = {
         'account_index': account_index,
-        'nickname': '未知',  # 新增昵称字段
+        'nickname': '未知',
         'oshwhub_status': '未知',
         'oshwhub_success': False,
         'jindou_status': '未知',
         'jindou_success': False,
+        'initial_jindou': 0,
+        'final_jindou': 0,
         'jindou_reward': 0,
-        'current_jindou': 0,
         'token_extracted': False,
         'secretkey_extracted': False
     }
@@ -498,7 +523,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             except Exception as e:
                 log(f"账号 {account_index} - 滑块验证处理: {e}")
 
-            # 等待跳转 - 修改后的部分
+            # 等待跳转
             log(f"账号 {account_index} - 等待登录跳转...")
             max_wait = 25
             for i in range(max_wait):
@@ -620,8 +645,9 @@ def sign_in_account(username, password, account_index, total_accounts):
             # 记录金豆签到结果
             result['jindou_success'] = jindou_success
             result['jindou_status'] = jlc_client.sign_status
+            result['initial_jindou'] = jlc_client.initial_jindou
+            result['final_jindou'] = jlc_client.final_jindou
             result['jindou_reward'] = jlc_client.jindou_reward
-            result['current_jindou'] = jlc_client.current_jindou
             
             if jindou_success:
                 log(f"账号 {account_index} - ✅ 金豆签到流程完成")
@@ -687,11 +713,12 @@ def main():
         log(f"  ├── 金豆签到: {result['jindou_status']}")
         
         if result['jindou_reward'] > 0:
-            log(f"  ├── 本次获得金豆: +{result['jindou_reward']}")
+            log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (+{result['jindou_reward']})")
             total_jindou_reward += result['jindou_reward']
-        
-        if result['current_jindou'] > 0:
-            log(f"  ├── 当前金豆总数: {result['current_jindou']}")
+        elif result['jindou_reward'] == 0 and result['initial_jindou'] > 0:
+            log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (0)")
+        else:
+            log(f"  ├── 金豆状态: 无法获取金豆信息")
         
         log(f"  ├── Token提取: {'成功' if result['token_extracted'] else '失败'}")
         log(f"  └── SecretKey提取: {'成功' if result['secretkey_extracted'] else '失败'}")
