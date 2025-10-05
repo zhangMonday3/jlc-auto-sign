@@ -264,7 +264,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             # 先访问 m.jlc.com 首页
             driver.get("https://m.jlc.com/")
             log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
-            time.sleep(5)
+            time.sleep(15)
 
             # 提取 token
             access_token, secretkey = extract_jlc_tokens_from_network(driver)
