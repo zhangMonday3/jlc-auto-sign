@@ -95,118 +95,6 @@ def extract_secretkey_from_devtools(driver):
     
     return secretkey
 
-class OSHWHubClient:
-    """开源平台 API 客户端"""
-    
-    def __init__(self, cookies, account_index):
-        self.base_url = "https://oshwhub.com"
-        self.headers = {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'accept-language': 'zh-CN,zh;q=0.9,ko;q=0.8,en-US;q=0.7,en;q=0.6,zh-TW;q=0.5',
-            'Cookie': cookies,
-            'Content-Type': 'application/json',
-        }
-        self.account_index = account_index
-        self.user_id = None
-        self.nickname = "未知"
-        self.current_points = 0  # 当前积分
-        self.sign_success = False  # 签到是否成功
-        
-    def send_request(self, url, method='GET', data=None):
-        """发送 API 请求"""
-        try:
-            if method.upper() == 'GET':
-                response = requests.get(url, headers=self.headers, timeout=10)
-            else:
-                response = requests.post(url, headers=self.headers, json=data, timeout=10)
-            
-            if response.status_code == 200:
-                try:
-                    return response.json()
-                except json.JSONDecodeError as e:
-                    log(f"账号 {self.account_index} - ❌ JSON 解析错误: {e}")
-                    log(f"账号 {self.account_index} - 响应内容: {response.text[:200]}...")
-                    return None
-            else:
-                log(f"账号 {self.account_index} - ❌ 请求失败，状态码: {response.status_code}")
-                log(f"账号 {self.account_index} - 响应内容: {response.text[:200]}...")
-                return None
-        except Exception as e:
-            log(f"账号 {self.account_index} - ❌ 请求异常 ({url}): {e}")
-            return None
-    
-    def get_user_info(self):
-        """获取用户信息"""
-        log(f"账号 {self.account_index} - 获取用户信息...")
-        url = f"{self.base_url}/api/users"
-        data = self.send_request(url)
-        
-        if data and data.get('success'):
-            user_info = data.get('result', {})
-            self.nickname = user_info.get('nickname', '未知')
-            self.current_points = user_info.get('points', 0)
-            self.user_id = user_info.get('uuid')
-            log(f"账号 {self.account_index} - ✅ 用户信息获取成功")
-            log(f"账号 {self.account_index} - 昵称: {self.nickname}")
-            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
-            return True
-        else:
-            error_msg = data.get('message', '未知错误') if data else '请求失败'
-            log(f"账号 {self.account_index} - ❌ 获取用户信息失败: {error_msg}")
-            return False
-    
-    def sign_in(self):
-        """执行签到"""
-        log(f"账号 {self.account_index} - 执行签到...")
-        url = f"{self.base_url}/api/users/signIn"
-        timestamp = int(time.time() * 1000)
-        data = self.send_request(url, 'POST', {"_t": timestamp})
-        
-        if data and data.get('success'):
-            log(f"账号 {self.account_index} - ✅ 签到成功")
-            self.sign_success = True
-            return True
-        else:
-            error_msg = data.get('message', '未知错误') if data else '请求失败'
-            log(f"账号 {self.account_index} - ❌ 签到失败: {error_msg}")
-            return False
-    
-    def get_points(self):
-        """获取积分数量"""
-        log(f"账号 {self.account_index} - 获取积分数量...")
-        url = f"{self.base_url}/api/users"
-        data = self.send_request(url)
-        
-        if data and data.get('success'):
-            self.current_points = data.get('result', {}).get('points', 0)
-            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
-            return self.current_points
-        else:
-            log(f"账号 {self.account_index} - ❌ 获取积分数量失败")
-            return 0
-    
-    def execute_full_process(self):
-        """执行完整的开源平台签到流程"""
-        log(f"账号 {self.account_index} - 开始完整开源平台签到流程")
-        
-        # 1. 获取用户信息
-        if not self.get_user_info():
-            return False
-        
-        time.sleep(random.randint(1, 2))
-        
-        # 2. 执行签到
-        sign_result = self.sign_in()
-        
-        time.sleep(random.randint(1, 2))
-        
-        # 3. 获取签到后的积分数量
-        self.get_points()
-        
-        return sign_result
-
 class JLCClient:
     """嘉立创 API 客户端"""
     
@@ -405,50 +293,119 @@ def navigate_and_interact_m_jlc(driver, account_index):
     except Exception as e:
         log(f"账号 {account_index} - 交互操作出错: {e}")
 
-def get_oshwhub_cookies(driver):
-    """从浏览器获取开源平台的Cookie"""
+def extract_cookies_from_driver(driver):
+    """从浏览器驱动中提取cookies并构建requests可用的cookie字典"""
+    cookies = {}
     try:
-        # 确保页面完全加载
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        
-        # 刷新页面确保Cookie是最新的
-        driver.refresh()
-        time.sleep(5)
-        
-        cookies = driver.get_cookies()
-        cookie_dict = {}
-        
-        # 必需的Cookie字段
-        required_cookies = ['oshwhub_session', 'acw_tc', 'oshwhub_csrf']
-        found_cookies = []
-        
-        for cookie in cookies:
-            if cookie['name'] in required_cookies:
-                cookie_dict[cookie['name']] = cookie['value']
-                found_cookies.append(cookie['name'])
-        
-        # 检查是否获取到所有必需的Cookie
-        missing_cookies = set(required_cookies) - set(found_cookies)
-        
-        if cookie_dict and not missing_cookies:
-            cookie_string = '; '.join([f"{k}={v}" for k, v in cookie_dict.items()])
-            log(f"✅ 成功获取开源平台Cookie: {found_cookies}")
-            return cookie_string
-        else:
-            if missing_cookies:
-                log(f"❌ 缺少必需的Cookie: {missing_cookies}")
-            else:
-                log("❌ 未找到开源平台所需的Cookie")
-            
-            # 尝试获取所有Cookie作为备选
-            all_cookies = '; '.join([f"{c['name']}={c['value']}" for c in cookies])
-            log(f"🔍 当前所有Cookie: {[c['name'] for c in cookies]}")
-            return all_cookies
+        selenium_cookies = driver.get_cookies()
+        for cookie in selenium_cookies:
+            cookies[cookie['name']] = cookie['value']
+        log(f"✅ 成功提取 {len(cookies)} 个cookies")
+        return cookies
     except Exception as e:
-        log(f"❌ 获取Cookie失败: {e}")
-        return None
+        log(f"❌ 提取cookies失败: {e}")
+        return {}
+
+class OshwhubClient:
+    """嘉立创硬件开源平台API客户端"""
+    
+    def __init__(self, cookies, account_index):
+        self.base_url = "https://oshwhub.com"
+        self.headers = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'zh-CN,zh;q=0.9,ko;q=0.8,en-US;q=0.7,en;q=0.6,zh-TW;q=0.5',
+        }
+        self.cookies = cookies
+        self.account_index = account_index
+        self.nickname = "未知"
+        self.current_points = 0
+        self.user_id = None
+        
+    def send_request(self, url, method='GET', data=None):
+        """发送API请求"""
+        try:
+            if method.upper() == 'GET':
+                response = requests.get(url, headers=self.headers, cookies=self.cookies, timeout=10)
+            else:
+                response = requests.post(url, headers=self.headers, cookies=self.cookies, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                log(f"账号 {self.account_index} - ❌ 开源平台请求失败，状态码: {response.status_code}")
+                return None
+        except Exception as e:
+            log(f"账号 {self.account_index} - ❌ 开源平台请求异常 ({url}): {e}")
+            return None
+    
+    def get_user_info(self):
+        """获取用户信息"""
+        log(f"账号 {self.account_index} - 获取开源平台用户信息...")
+        url = f"{self.base_url}/api/users"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            self.nickname = data.get('result', {}).get('nickname', '未知')
+            self.current_points = data.get('result', {}).get('points', 0)
+            self.user_id = data.get('result', {}).get('uuid')
+            log(f"账号 {self.account_index} - ✅ 用户信息获取成功")
+            log(f"账号 {self.account_index} - 昵称: {self.nickname}")
+            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
+            return True
+        else:
+            error_msg = data.get('message', '未知错误') if data else '请求失败'
+            log(f"账号 {self.account_index} - ❌ 获取开源平台用户信息失败: {error_msg}")
+            return False
+    
+    def sign_in(self):
+        """执行开源平台签到"""
+        log(f"账号 {self.account_index} - 执行开源平台签到...")
+        url = f"{self.base_url}/api/users/signIn"
+        data = self.send_request(url, 'POST', {"_t": int(time.time() * 1000)})
+        
+        if data and data.get('success'):
+            log(f"账号 {self.account_index} - ✅ 开源平台签到成功")
+            return True
+        else:
+            error_msg = data.get('message', '未知错误') if data else '请求失败'
+            log(f"账号 {self.account_index} - ❌ 开源平台签到失败: {error_msg}")
+            return False
+    
+    def get_points(self):
+        """获取当前积分"""
+        log(f"账号 {self.account_index} - 获取开源平台当前积分...")
+        url = f"{self.base_url}/api/users"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            self.current_points = data.get('result', {}).get('points', 0)
+            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
+            return self.current_points
+        else:
+            log(f"账号 {self.account_index} - ❌ 获取开源平台积分失败")
+            return 0
+    
+    def execute_full_process(self):
+        """执行完整的开源平台签到流程"""
+        log(f"账号 {self.account_index} - 开始完整开源平台签到流程")
+        
+        # 1. 获取用户信息
+        if not self.get_user_info():
+            return False
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 2. 执行签到
+        sign_success = self.sign_in()
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 3. 获取积分（签到后刷新积分）
+        self.get_points()
+        
+        return sign_success
 
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行完整的签到流程"""
@@ -596,38 +553,35 @@ def sign_in_account(username, password, account_index, total_accounts):
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
-        # 3. 开源平台签到（使用API方式）
-        log(f"账号 {account_index} - 等待签到页加载...")
+        # 3. 开源平台签到 - 使用API方式
+        log(f"账号 {account_index} - 等待页面加载...")
         time.sleep(5)
 
-        # 刷新页面确保状态最新
         try:
             driver.refresh()
             time.sleep(8)
         except:
             pass
 
-        # 获取Cookie并执行API签到
-        oshwhub_cookies = get_oshwhub_cookies(driver)
-        
-        if oshwhub_cookies:
-            log(f"账号 {account_index} - 开始开源平台API签到流程")
-            oshwhub_client = OSHWHubClient(oshwhub_cookies, account_index)
+        # 提取cookies并执行API签到
+        cookies = extract_cookies_from_driver(driver)
+        if cookies:
+            oshwhub_client = OshwhubClient(cookies, account_index)
             oshwhub_success = oshwhub_client.execute_full_process()
             
             # 记录开源平台签到结果
             result['oshwhub_success'] = oshwhub_success
-            result['oshwhub_status'] = '签到成功' if oshwhub_client.sign_success else '签到失败'
+            result['oshwhub_status'] = '签到成功' if oshwhub_success else '签到失败'
             result['oshwhub_points'] = oshwhub_client.current_points
             result['oshwhub_nickname'] = oshwhub_client.nickname
             
             if oshwhub_success:
-                log(f"账号 {account_index} - ✅ 开源平台签到流程完成")
+                log(f"账号 {account_index} - ✅ 开源平台API签到成功！")
             else:
-                log(f"账号 {account_index} - ❌ 开源平台签到流程失败")
+                log(f"账号 {account_index} - ❌ 开源平台API签到失败")
         else:
-            log(f"账号 {account_index} - ❌ 无法获取开源平台Cookie，跳过API签到")
-            result['oshwhub_status'] = 'Cookie获取失败'
+            log(f"账号 {account_index} - ❌ 无法提取cookies，跳过开源平台API签到")
+            result['oshwhub_status'] = 'Cookie提取失败'
 
         time.sleep(3)
 
@@ -717,8 +671,7 @@ def main():
         
         log(f"账号 {account_index} 详细结果:")
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
-        if result['oshwhub_nickname'] != '未知':
-            log(f"  ├── 用户昵称: {result['oshwhub_nickname']}")
+        log(f"  ├── 用户昵称: {result['oshwhub_nickname']}")
         log(f"  ├── 当前积分: {result['oshwhub_points']}")
         log(f"  ├── 金豆签到: {result['jindou_status']}")
         
