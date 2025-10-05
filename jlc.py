@@ -101,45 +101,155 @@ def extract_secretkey_from_devtools(driver):
     
     return secretkey
 
-def sign_in_jindou(access_token, secretkey, account_index):
-    """金豆签到函数"""
-    log(f"账号 {account_index} - 开始执行金豆签到...")
+class JLCClient:
+    """嘉立创 API 客户端"""
     
-    # 多个可能的签到接口
-    sign_urls = [
-        "https://m.jlc.com/api/appPlatform/center/sign/sign",
-        "https://m.jlc.com/api/appPlatform/sign/sign",
-        "https://m.jlc.com/api/center/sign/sign"
-    ]
+    def __init__(self, access_token, secretkey, account_index):
+        self.base_url = "https://m.jlc.com"
+        self.headers = {
+            'user-agent': self.get_random_user_agent(),
+            'x-jlc-clienttype': 'WEB',
+            'accept': 'application/json, text/plain, */*',
+            'x-jlc-accesstoken': access_token,
+            'secretkey': secretkey,
+            'Referer': 'https://m.jlc.com/mapp/pages/my/index',
+        }
+        self.account_index = account_index
+        self.message = ""
+        
+    def get_random_user_agent(self):
+        """获取随机 User-Agent"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ]
+        return random.choice(user_agents)
     
-    headers = {
-        "X-JLC-AccessToken": access_token,
-        "secretkey": secretkey,
-        "content-type": "application/json",
-        "user-agent": "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        "origin": "https://m.jlc.com",
-        "referer": "https://m.jlc.com/"
-    }
-
-    for url in sign_urls:
+    def send_request(self, url, method='GET', data=None):
+        """发送 API 请求"""
         try:
-            log(f"账号 {account_index} - 尝试签到接口: {url}")
-            resp = requests.post(url, headers=headers, json={}, timeout=10)
-            data = resp.json()
+            if method.upper() == 'GET':
+                response = requests.get(url, headers=self.headers, timeout=10)
+            else:
+                response = requests.post(url, headers=self.headers, json=data, timeout=10)
             
-            if data.get("code") == 0:
-                reward = data.get('data', {}).get('reward', '未知')
-                log(f"账号 {account_index} - ✅ 金豆签到成功！获得奖励：{reward}")
-                return True
-            elif "重复" in str(data) or "已签到" in str(data):
-                log(f"账号 {account_index} - ☑ 今日已签到金豆。")
+            return response.json()
+        except Exception as e:
+            log(f"账号 {self.account_index} - ❌ 请求失败 ({url}): {e}")
+            return None
+    
+    def get_user_info(self):
+        """获取用户信息"""
+        log(f"账号 {self.account_index} - 获取用户信息...")
+        url = f"{self.base_url}/api/appPlatform/center/setting/selectPersonalInfo"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            customer_code = data.get('data', {}).get('customerCode', '未知')
+            log(f"账号 {self.account_index} - 用户编号: {customer_code}")
+            self.message += f"用户编号: {customer_code}\n"
+            return True
+        else:
+            log(f"账号 {self.account_index} - ❌ 获取用户信息失败: {data}")
+            return False
+    
+    def check_sign_status(self):
+        """检查签到状态"""
+        log(f"账号 {self.account_index} - 检查签到状态...")
+        url = f"{self.base_url}/api/activity/sign/getCurrentUserSignInConfig"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            have_sign_in = data.get('data', {}).get('haveSignIn', False)
+            if have_sign_in:
+                log(f"账号 {self.account_index} - ✅ 今日已签到")
+                self.message += "今日已签到\n"
                 return True
             else:
-                log(f"账号 {account_index} - ⚠ 金豆签到返回：{data}")
-        except Exception as e:
-            log(f"账号 {account_index} - ❌ 金豆签到失败 ({url}): {e}")
+                log(f"账号 {self.account_index} - 今日未签到")
+                return False
+        else:
+            log(f"账号 {self.account_index} - ❌ 检查签到状态失败: {data}")
+            return None
     
-    return False
+    def sign_in(self):
+        """执行签到"""
+        log(f"账号 {self.account_index} - 执行签到...")
+        url = f"{self.base_url}/api/activity/sign/signIn?source=4"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            gain_num = data.get('data', {}).get('gainNum')
+            if gain_num:
+                log(f"账号 {self.account_index} - ✅ 签到成功，金豆+{gain_num}")
+                self.message += f"签到成功，金豆+{gain_num}\n"
+                return True
+            else:
+                log(f"账号 {self.account_index} - 有奖励可领取，先领取奖励")
+                return self.receive_voucher()
+        else:
+            log(f"账号 {self.account_index} - ❌ 签到失败: {data}")
+            return False
+    
+    def receive_voucher(self):
+        """领取奖励"""
+        log(f"账号 {self.account_index} - 领取奖励...")
+        url = f"{self.base_url}/api/activity/sign/receiveVoucher"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            log(f"账号 {self.account_index} - ✅ 领取成功")
+            self.message += "领取成功\n"
+            # 领取奖励后再次签到
+            time.sleep(random.randint(1, 2))
+            return self.sign_in()
+        else:
+            log(f"账号 {self.account_index} - ❌ 领取奖励失败: {data}")
+            return False
+    
+    def get_points(self):
+        """获取金豆数量"""
+        log(f"账号 {self.account_index} - 获取金豆数量...")
+        url = f"{self.base_url}/api/activity/front/getCustomerIntegral"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            integral_voucher = data.get('data', {}).get('integralVoucher', 0)
+            log(f"账号 {self.account_index} - 当前金豆: {integral_voucher}")
+            self.message += f"当前金豆: {integral_voucher}\n\n"
+            return integral_voucher
+        else:
+            log(f"账号 {self.account_index} - ❌ 获取金豆数量失败: {data}")
+            return 0
+    
+    def execute_full_process(self):
+        """执行完整的金豆签到流程"""
+        log(f"账号 {self.account_index} - 开始完整金豆签到流程")
+        
+        # 1. 获取用户信息
+        if not self.get_user_info():
+            return False
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 2. 检查签到状态
+        sign_status = self.check_sign_status()
+        if sign_status is None:
+            return False
+        
+        if not sign_status:
+            # 3. 执行签到
+            time.sleep(random.randint(2, 3))
+            if not self.sign_in():
+                return False
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 4. 获取金豆数量
+        self.get_points()
+        
+        return True
 
 def navigate_and_interact_m_jlc(driver, account_index):
     """在 m.jlc.com 进行导航和交互以触发网络请求"""
@@ -213,6 +323,7 @@ def sign_in_account(username, password, account_index, total_accounts):
     
     wait = WebDriverWait(driver, 25)
     account_success = False
+    jlc_message = ""
 
     try:
         # 1. 打开签到页
@@ -333,18 +444,21 @@ def sign_in_account(username, password, account_index, total_accounts):
             pass
 
         # 执行开源平台签到
+        oshwhub_success = False
         try:
             sign_btn = wait.until(
                 EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
             )
             sign_btn.click()
             log(f"账号 {account_index} - ✅ 开源平台签到成功！")
+            oshwhub_success = True
             account_success = True
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
             try:
                 signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
                 log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
+                oshwhub_success = True
                 account_success = True
             except:
                 log(f"账号 {account_index} - ❌ 开源平台签到失败")
@@ -375,10 +489,16 @@ def sign_in_account(username, password, account_index, total_accounts):
             log(f"  Token: {access_token[:30]}...")
             log(f"  SecretKey: {secretkey[:20]}...")
             
-            # 执行金豆签到
-            jindou_success = sign_in_jindou(access_token, secretkey, account_index)
+            # 创建 JLC 客户端并执行完整流程
+            jlc_client = JLCClient(access_token, secretkey, account_index)
+            jindou_success = jlc_client.execute_full_process()
+            jlc_message = jlc_client.message
+            
             if jindou_success:
                 account_success = account_success and True
+                log(f"账号 {account_index} - ✅ 金豆签到流程完成")
+            else:
+                log(f"账号 {account_index} - ❌ 金豆签到流程失败")
         else:
             log(f"账号 {account_index} - ❌ 无法提取到 token 或 secretkey，跳过金豆签到")
             if not access_token:
@@ -410,6 +530,10 @@ def sign_in_account(username, password, account_index, total_accounts):
     finally:
         driver.quit()
         log(f"账号 {account_index} - 浏览器已关闭")
+    
+    # 输出账号处理结果
+    if jlc_message:
+        log(f"账号 {account_index} - 金豆签到结果:\n{jlc_message}")
     
     return account_success
 
