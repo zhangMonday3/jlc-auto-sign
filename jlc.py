@@ -288,7 +288,7 @@ def oshwhub_api_sign_in(cookie_str, account_index):
             return None
 
     # 1. 获取用户信息（以拿昵称和积分）
-    log(f"账号 {account_index} - 获取开源平台用户信息（接口）...")
+    log(f"账号 {account_index} - 获取开源平台用户信息...")
     data = send_request(f"{base_url}/api/users")
     if not data or not data.get('success'):
         log(f"账号 {account_index} - ❌ 获取用户信息失败（需检查 Cookie）")
@@ -300,14 +300,14 @@ def oshwhub_api_sign_in(cookie_str, account_index):
     log(f"账号 {account_index} - 签到前积分：{points_before}")
 
     # 2. 执行签到
-    log(f"账号 {account_index} - 执行开源平台签到（接口）...")
+    log(f"账号 {account_index} - 执行开源平台签到...")
     sign_data = send_request(f"{base_url}/api/users/signIn", method='POST', data={"_t": int(time.time() * 1000)})
     if not sign_data:
-        log(f"账号 {account_index} - ❌ 签到请求失败（接口）")
+        log(f"账号 {account_index} - ❌ 签到请求失败")
         return {'success': False, 'nickname': nickname, 'points': points_before, 'status': '签到请求失败'}
 
     if sign_data.get('success'):
-        log(f"账号 {account_index} - ✅ 开源平台签到成功（接口）")
+        log(f"账号 {account_index} - ✅ 开源平台签到成功")
         sign_status = '签到成功'
     else:
         msg = sign_data.get('message', str(sign_data))
@@ -406,7 +406,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
         
-        time.sleep(8 + random.randint(2, 5))
+        time.sleep(6 + random.randint(2, 5))
         current_url = driver.current_url
 
         # 2. 登录流程
@@ -419,7 +419,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 )
                 phone_btn.click()
                 log(f"账号 {account_index} - 已切换账号登录")
-                time.sleep(3)
+                time.sleep(2)
             except Exception as e:
                 log(f"账号 {account_index} - 账号登录按钮可能已默认选中: {e}")
 
@@ -455,7 +455,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 return result
 
             # 处理滑块验证
-            time.sleep(6)
+            time.sleep(5)
             try:
                 slider = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
@@ -509,8 +509,8 @@ def sign_in_account(username, password, account_index, total_accounts):
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
-        # 3. 开源平台签到（改为使用 API）
-        log(f"账号 {account_index} - 使用接口方式执行开源平台签到...")
+        # 3. 开源平台签到
+        log(f"账号 {account_index} - 执行开源平台签到...")
         try:
             # 从浏览器提取 Cookie
             cookies = driver.get_cookies()
@@ -552,7 +552,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
-        time.sleep(15)
+        time.sleep(8)
         
         navigate_and_interact_m_jlc(driver, account_index)
         
