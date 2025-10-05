@@ -16,14 +16,34 @@ from selenium.webdriver.support import expected_conditions as EC
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
-def enable_devtools_logging(driver):
-    """启用 DevTools 性能日志记录"""
-    driver.execute_cdp_cmd('Network.enable', {})
-    driver.execute_cdp_cmd('Performance.enable', {})
-    log("DevTools 网络监控已启用")
+def extract_token_from_local_storage(driver):
+    """直接从 localStorage 提取 X-JLC-AccessToken"""
+    try:
+        token = driver.execute_script("return window.localStorage.getItem('X-JLC-AccessToken');")
+        if token:
+            log(f"✅ 成功从 localStorage 提取 token: {token[:30]}...")
+            return token
+        else:
+            log("❌ localStorage 中未找到 X-JLC-AccessToken")
+            # 尝试其他可能的键名
+            alternative_keys = [
+                "x-jlc-accesstoken",
+                "accessToken", 
+                "token",
+                "jlc-token"
+            ]
+            for key in alternative_keys:
+                token = driver.execute_script(f"return window.localStorage.getItem('{key}');")
+                if token:
+                    log(f"✅ 从 localStorage 的 {key} 提取到 token: {token[:30]}...")
+                    return token
+    except Exception as e:
+        log(f"❌ 从 localStorage 提取 token 失败: {e}")
+    
+    return None
 
-def extract_secretkey_from_devtools(driver, target_url_pattern="m.jlc.com"):
-    """使用 DevTools 协议从网络请求中提取 secretkey"""
+def extract_secretkey_from_devtools(driver):
+    """使用 DevTools 从网络请求中提取 secretkey"""
     secretkey = None
     
     try:
@@ -35,62 +55,51 @@ def extract_secretkey_from_devtools(driver, target_url_pattern="m.jlc.com"):
                 message = json.loads(entry['message'])
                 message_type = message.get('message', {}).get('method', '')
                 
-                # 检查网络响应
-                if message_type == 'Network.responseReceived':
-                    response = message.get('message', {}).get('params', {}).get('response', {})
-                    url = response.get('url', '')
-                    
-                    if target_url_pattern in url:
-                        headers = response.get('requestHeaders', {})
-                        secretkey = headers.get('secretkey') or headers.get('SecretKey')
-                        
-                        if secretkey:
-                            log(f"从响应中提取到 secretkey: URL={url}")
-                            break
-                
                 # 检查网络请求
-                elif message_type == 'Network.requestWillBeSent':
+                if message_type == 'Network.requestWillBeSent':
                     request = message.get('message', {}).get('params', {}).get('request', {})
                     url = request.get('url', '')
                     
-                    if target_url_pattern in url:
+                    # 检查所有 m.jlc.com 的请求
+                    if 'm.jlc.com' in url:
                         headers = request.get('headers', {})
-                        secretkey = headers.get('secretkey') or headers.get('SecretKey')
+                        # 尝试多种可能的键名
+                        secretkey = (
+                            headers.get('secretkey') or 
+                            headers.get('SecretKey') or
+                            headers.get('secretKey') or
+                            headers.get('SECRETKEY')
+                        )
                         
                         if secretkey:
-                            log(f"从请求中提取到 secretkey: URL={url}")
+                            log(f"✅ 从请求中提取到 secretkey: {secretkey[:20]}... (URL: {url.split('/')[-1]}...)")
+                            break
+                
+                # 检查网络响应
+                elif message_type == 'Network.responseReceived':
+                    response = message.get('message', {}).get('params', {}).get('response', {})
+                    url = response.get('url', '')
+                    
+                    if 'm.jlc.com' in url:
+                        headers = response.get('requestHeaders', {})
+                        secretkey = (
+                            headers.get('secretkey') or 
+                            headers.get('SecretKey') or
+                            headers.get('secretKey') or
+                            headers.get('SECRETKEY')
+                        )
+                        
+                        if secretkey:
+                            log(f"✅ 从响应中提取到 secretkey: {secretkey[:20]}... (URL: {url.split('/')[-1]}...)")
                             break
                             
             except Exception as e:
                 continue
                 
     except Exception as e:
-        log(f"DevTools 提取 secretkey 出错: {e}")
+        log(f"❌ DevTools 提取 secretkey 出错: {e}")
     
     return secretkey
-
-def extract_token_from_local_storage(driver):
-    """从 localStorage 中提取 token"""
-    token = None
-    
-    try:
-        # 尝试从 localStorage 获取 token
-        token = driver.execute_script(
-            "return window.localStorage.getItem('x-jlc-accesstoken') || "
-            "window.localStorage.getItem('accessToken') || "
-            "window.sessionStorage.getItem('x-jlc-accesstoken') || "
-            "window.sessionStorage.getItem('accessToken');"
-        )
-        
-        if token:
-            log("✅ 从 localStorage/sessionStorage 成功提取 token")
-        else:
-            log("❌ 从 localStorage/sessionStorage 未找到 token")
-            
-    except Exception as e:
-        log(f"❌ 从 localStorage 提取 token 失败: {e}")
-    
-    return token
 
 def sign_in_jindou(access_token, secretkey, account_index):
     """金豆签到函数"""
@@ -104,7 +113,7 @@ def sign_in_jindou(access_token, secretkey, account_index):
     ]
     
     headers = {
-        "x-jlc-accesstoken": access_token,
+        "X-JLC-AccessToken": access_token,
         "secretkey": secretkey,
         "content-type": "application/json",
         "user-agent": "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -122,7 +131,7 @@ def sign_in_jindou(access_token, secretkey, account_index):
                 reward = data.get('data', {}).get('reward', '未知')
                 log(f"账号 {account_index} - ✅ 金豆签到成功！获得奖励：{reward}")
                 return True
-            elif "重复" in str(data) or "已签到" in str(data) or data.get("code") == 1:
+            elif "重复" in str(data) or "已签到" in str(data):
                 log(f"账号 {account_index} - ☑ 今日已签到金豆。")
                 return True
             else:
@@ -133,7 +142,7 @@ def sign_in_jindou(access_token, secretkey, account_index):
     return False
 
 def navigate_and_interact_m_jlc(driver, account_index):
-    """在 m.jlc.com 进行导航和交互以触发 token 请求"""
+    """在 m.jlc.com 进行导航和交互以触发网络请求"""
     log(f"账号 {account_index} - 在 m.jlc.com 进行交互操作...")
     
     try:
@@ -206,9 +215,6 @@ def sign_in_account(username, password, account_index, total_accounts):
     account_success = False
 
     try:
-        # 启用 DevTools 日志
-        enable_devtools_logging(driver)
-
         # 1. 打开签到页
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
@@ -355,50 +361,42 @@ def sign_in_account(username, password, account_index, total_accounts):
         # 延长等待时间
         time.sleep(15)
         
-        # 进行交互操作以触发 secretkey 请求
+        # 进行交互操作以触发网络请求
         navigate_and_interact_m_jlc(driver, account_index)
         
-        # 分别提取 token 和 secretkey
-        log(f"账号 {account_index} - 开始提取 token 和 secretkey...")
-        
-        # 从 localStorage 提取 token
+        # 提取 token (从 localStorage)
         access_token = extract_token_from_local_storage(driver)
         
-        # 从 DevTools 提取 secretkey
+        # 提取 secretkey (从 DevTools)
         secretkey = extract_secretkey_from_devtools(driver)
         
         if access_token and secretkey:
             log(f"账号 {account_index} - ✅ 成功提取 token 和 secretkey")
-            log(f"  Token 前20位: {access_token[:20]}...")
-            log(f"  SecretKey 前20位: {secretkey[:20]}...")
+            log(f"  Token: {access_token[:30]}...")
+            log(f"  SecretKey: {secretkey[:20]}...")
             
             # 执行金豆签到
             jindou_success = sign_in_jindou(access_token, secretkey, account_index)
             if jindou_success:
                 account_success = account_success and True
         else:
-            log(f"账号 {account_index} - ❌ 无法提取到完整的认证信息")
+            log(f"账号 {account_index} - ❌ 无法提取到 token 或 secretkey，跳过金豆签到")
             if not access_token:
-                log(f"账号 {account_index} - ❌ 缺少 token")
+                log(f"账号 {account_index} - ❌ Token 提取失败")
             if not secretkey:
-                log(f"账号 {account_index} - ❌ 缺少 secretkey")
+                log(f"账号 {account_index} - ❌ SecretKey 提取失败")
             
             # 保存页面源码和截图用于调试
             try:
-                # 保存页面源码
+                # 检查所有 localStorage 内容
+                all_storage = driver.execute_script("return JSON.stringify(window.localStorage);")
+                log(f"账号 {account_index} - localStorage 内容: {all_storage}")
+                
                 page_source = driver.page_source
                 with open(f"debug_page_account_{account_index}.html", "w", encoding="utf-8") as f:
                     f.write(page_source)
-                
-                # 保存 localStorage 内容
-                local_storage = driver.execute_script("return JSON.stringify(window.localStorage);")
-                with open(f"debug_localStorage_account_{account_index}.json", "w", encoding="utf-8") as f:
-                    f.write(local_storage)
-                
-                # 保存截图
                 driver.save_screenshot(f"debug_screenshot_account_{account_index}.png")
-                
-                log(f"账号 {account_index} - 已保存调试信息到文件")
+                log(f"账号 {account_index} - 已保存调试信息")
             except Exception as e:
                 log(f"账号 {account_index} - 保存调试信息失败: {e}")
 
