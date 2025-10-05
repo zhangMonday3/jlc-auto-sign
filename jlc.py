@@ -258,77 +258,6 @@ class JLCClient:
         
         return True
 
-def oshwhub_api_sign_in(cookie_str, account_index):
-    """
-    使用 oshwhub 接口通过 cookie 完成签到并返回当前积分
-    返回格式: {'success': bool, 'nickname': str or None, 'points': int, 'status': str}
-    """
-    base_url = "https://oshwhub.com"
-    headers = {
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'accept': 'application/json, text/plain, */*',
-        'accept-language': 'zh-CN,zh;q=0.9',
-        'cookie': cookie_str
-    }
-
-    def send_request(url, method='GET', data=None):
-        try:
-            if method == 'GET':
-                resp = requests.get(url, headers=headers, timeout=10)
-            else:
-                resp = requests.post(url, headers=headers, json=data, timeout=10)
-            # 尝试解析 json
-            try:
-                return resp.json()
-            except:
-                log(f"账号 {account_index} - ❌ 非 JSON 响应 ({url}) 状态码: {resp.status_code}")
-                return None
-        except Exception as e:
-            log(f"账号 {account_index} - ❌ 请求异常 ({url}): {e}")
-            return None
-
-    # 1. 获取用户信息（以拿昵称和积分）
-    log(f"账号 {account_index} - 获取开源平台用户信息...")
-    data = send_request(f"{base_url}/api/users")
-    if not data or not data.get('success'):
-        log(f"账号 {account_index} - ❌ 获取用户信息失败（需检查 Cookie）")
-        return {'success': False, 'nickname': None, 'points': 0, 'status': '获取用户信息失败'}
-
-    nickname = data.get('result', {}).get('nickname', '未知')
-    points_before = data.get('result', {}).get('points', 0)
-    log(f"账号 {account_index} - 昵称：{nickname}")
-    log(f"账号 {account_index} - 签到前积分：{points_before}")
-
-    # 2. 执行签到
-    log(f"账号 {account_index} - 执行开源平台签到...")
-    sign_data = send_request(f"{base_url}/api/users/signIn", method='POST', data={"_t": int(time.time() * 1000)})
-    if not sign_data:
-        log(f"账号 {account_index} - ❌ 签到请求失败")
-        return {'success': False, 'nickname': nickname, 'points': points_before, 'status': '签到请求失败'}
-
-    if sign_data.get('success'):
-        log(f"账号 {account_index} - ✅ 开源平台签到成功")
-        sign_status = '签到成功'
-    else:
-        msg = sign_data.get('message', str(sign_data))
-        log(f"账号 {account_index} - ⚠ 开源平台签到返回失败: {msg}")
-        sign_status = '签到失败'
-
-    # 3. 再次获取积分
-    time.sleep(random.randint(1, 2))
-    data2 = send_request(f"{base_url}/api/users")
-    points_after = points_before
-    if data2 and data2.get('success'):
-        points_after = data2.get('result', {}).get('points', points_before)
-    log(f"账号 {account_index} - 签到后当前积分：{points_after}")
-
-    return {
-        'success': bool(sign_data.get('success', False)),
-        'nickname': nickname,
-        'points': points_after,
-        'status': sign_status
-    }
-
 def navigate_and_interact_m_jlc(driver, account_index):
     """在 m.jlc.com 进行导航和交互以触发网络请求"""
     log(f"账号 {account_index} - 在 m.jlc.com 进行交互操作...")
@@ -392,7 +321,6 @@ def sign_in_account(username, password, account_index, total_accounts):
         'account_index': account_index,
         'oshwhub_status': '未知',
         'oshwhub_success': False,
-        'oshwhub_points': 0,
         'jindou_status': '未知',
         'jindou_success': False,
         'jindou_reward': 0,
@@ -406,7 +334,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
         
-        time.sleep(6 + random.randint(2, 5))
+        time.sleep(8 + random.randint(2, 5))
         current_url = driver.current_url
 
         # 2. 登录流程
@@ -419,7 +347,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 )
                 phone_btn.click()
                 log(f"账号 {account_index} - 已切换账号登录")
-                time.sleep(2)
+                time.sleep(3)
             except Exception as e:
                 log(f"账号 {account_index} - 账号登录按钮可能已默认选中: {e}")
 
@@ -455,7 +383,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 return result
 
             # 处理滑块验证
-            time.sleep(5)
+            time.sleep(6)
             try:
                 slider = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
@@ -498,61 +426,95 @@ def sign_in_account(username, password, account_index, total_accounts):
             except Exception as e:
                 log(f"账号 {account_index} - 滑块验证处理: {e}")
 
-            # 等待跳转
+            # 等待跳转 - 修改后的部分
             log(f"账号 {account_index} - 等待登录跳转...")
-            for i in range(25):
+            max_wait = 25
+            for i in range(max_wait):
                 current_url = driver.current_url
+                
+                # 检查是否成功跳转回签到页面
                 if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
                     log(f"账号 {account_index} - 成功跳转回签到页面")
                     break
-                time.sleep(5)
+                
+                # 检查是否出现了"进入系统"按钮
+                try:
+                    enter_system_btn = driver.find_element(By.XPATH, '//span[contains(text(),"进入系统")]')
+                    log(f"账号 {account_index} - 检测到'进入系统'按钮，正在点击...")
+                    enter_system_btn.click()
+                    log(f"账号 {account_index} - 已点击进入系统按钮，等待跳转...")
+                    time.sleep(5)
+                    
+                    # 点击后再次检查URL
+                    current_url = driver.current_url
+                    if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
+                        log(f"账号 {account_index} - 通过进入系统按钮成功跳转")
+                        break
+                        
+                except Exception as e:
+                    # 没有找到进入系统按钮，继续等待
+                    pass
+                
+                time.sleep(2)
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
-        # 3. 开源平台签到
-        log(f"账号 {account_index} - 执行开源平台签到...")
-        try:
-            # 从浏览器提取 Cookie
-            cookies = driver.get_cookies()
-            cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies]) if cookies else ""
-            if not cookie_str:
-                log(f"账号 {account_index} - ❌ 未能提取到 Cookie，无法执行 API 签到，保留原页面尝试点击签到按钮")
-                # 退回到原来的点击方式做一次尝试（兼容性保底）
+            # 额外检查：如果仍然在登录页面，尝试再次点击进入系统
+            current_url = driver.current_url
+            if "passport.jlc.com" in current_url:
+                log(f"账号 {account_index} - 仍然在登录页面，尝试再次处理...")
                 try:
-                    sign_btn = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
-                    )
-                    sign_btn.click()
-                    log(f"账号 {account_index} - ✅ 开源平台页面点击签到触发（后备方案）")
-                    result['oshwhub_status'] = '签到（页面点击）'
-                    result['oshwhub_success'] = True
-                except Exception as e:
-                    log(f"账号 {account_index} - ⚠ 页面点击签到失败: {e}")
+                    # 先尝试找进入系统按钮
+                    enter_system_btn = driver.find_element(By.XPATH, '//span[contains(text(),"进入系统")]')
+                    enter_system_btn.click()
+                    log(f"账号 {account_index} - 已点击进入系统按钮")
+                    time.sleep(5)
+                except:
+                    # 如果没有进入系统按钮，尝试刷新页面
                     try:
-                        signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
-                        log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了（页面检测）！")
-                        result['oshwhub_status'] = '已签到'
-                        result['oshwhub_success'] = True
+                        driver.refresh()
+                        time.sleep(5)
+                        log(f"账号 {account_index} - 已刷新页面")
                     except:
-                        log(f"账号 {account_index} - ❌ 开源平台签到失败（页面 & Cookie 均无效）")
-                        result['oshwhub_status'] = '签到失败'
-            else:
-                api_result = oshwhub_api_sign_in(cookie_str, account_index)
-                result['oshwhub_status'] = api_result['status']
-                result['oshwhub_success'] = api_result['success']
-                result['oshwhub_points'] = api_result['points']
-                log(f"账号 {account_index} - 开源平台返回状态: {api_result['status']}，当前积分: {api_result['points']}")
-        except Exception as e:
-            log(f"账号 {account_index} - ❌ API 签到逻辑出错: {e}")
+                        pass
 
-        # 保持你要求的行为：签到完等 5 秒后跳转到 m.jlc.com 继续抓包等
+        # 3. 开源平台签到
+        log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
-        # 4. 金豆签到流程（保留）
+        try:
+            driver.refresh()
+            time.sleep(4)
+        except:
+            pass
+
+        # 执行开源平台签到
+        try:
+            sign_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
+            )
+            sign_btn.click()
+            log(f"账号 {account_index} - ✅ 开源平台签到成功！")
+            result['oshwhub_status'] = '签到成功'
+            result['oshwhub_success'] = True
+        except Exception as e:
+            log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
+            try:
+                signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
+                log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
+                result['oshwhub_status'] = '已签到'
+                result['oshwhub_success'] = True
+            except:
+                log(f"账号 {account_index} - ❌ 开源平台签到失败")
+                result['oshwhub_status'] = '签到失败'
+
+        time.sleep(3)
+
+        # 4. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
-        time.sleep(8)
+        time.sleep(15)
         
         navigate_and_interact_m_jlc(driver, account_index)
         
@@ -635,10 +597,6 @@ def main():
         log(f"账号 {account_index} 详细结果:")
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
         log(f"  ├── 金豆签到: {result['jindou_status']}")
-        
-        # 新增显示开源平台积分
-        if result.get('oshwhub_points', 0) >= 0:
-            log(f"  ├── 开源平台当前积分: {result.get('oshwhub_points', 0)}")
         
         if result['jindou_reward'] > 0:
             log(f"  ├── 本次获得金豆: +{result['jindou_reward']}")
