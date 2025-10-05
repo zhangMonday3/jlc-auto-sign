@@ -111,11 +111,14 @@ pip install selenium requests
 3. 安装ChromeDriver
    · 访问[ChromeDriver](https://developer.chrome.com/docs/chromedriver/downloads)下载页面
    · 下载与你的Chrome版本匹配的ChromeDriver
+   
    · 将ChromeDriver添加到系统PATH中：
+   
      · Windows: 解压到 C:\Windows\system32\
+   
      · Linux/macOS: 解压到 /usr/local/bin/
 
-4. 运行脚本
+5. 运行脚本
 
 ```bash
 python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...
