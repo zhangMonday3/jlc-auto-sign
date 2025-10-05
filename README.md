@@ -34,7 +34,7 @@
 1. 进入你 Fork 的仓库，点击 **Settings** → **Secrets** → **New repository secret**。  
 2. 添加以下两个密钥：  
    - **Name**: `JLC_USERNAME`  
-     **Value**: 你的嘉立创登录账户邮箱或用户名，多账号用英文逗号分割，要和密码一一对应
+     **Value**: 你的嘉立创登录账户邮箱/手机号/客编，多账号用英文逗号分割，要和密码一一对应
    - **Name**: `JLC_PASSWORD`  
      **Value**: 你的嘉立创登录密码，多账号用英文逗号分割，要和账号一一对应
 
