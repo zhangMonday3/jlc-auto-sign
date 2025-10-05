@@ -677,8 +677,8 @@ def sign_in_account(username, password, account_index, total_accounts):
 
 def main():
     if len(sys.argv) < 3:
-        print("用法: python script.py 账号1,账号2,账号3... 密码1,密码2,密码3...")
-        print("示例: python script.py user1,user2,user3 pwd1,pwd2,pwd3")
+        print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...")
+        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3")
         sys.exit(1)
     
     usernames = [u.strip() for u in sys.argv[1].split(',') if u.strip()]
