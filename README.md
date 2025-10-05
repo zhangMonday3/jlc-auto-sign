@@ -69,6 +69,58 @@
 
 ---
 
+### 5. 获取更新
+
+在你fork的仓库中找到sync fork，点击即可更新，如图
+
+![获取更新](img/7.png)
+
+下一次自动签到会自动运行更新后的程序
+
+推荐定期检查更新来优化脚本并获取最新功能
+
+---
+
+### 本地部署说明
+
+如果你希望在本地环境运行此脚本，可以按照以下步骤进行配置：
+
+环境要求
+
+· Python 3.7 或更高版本
+· Chrome 浏览器
+· ChromeDriver（与Chrome版本匹配）
+
+安装步骤
+
+1. 克隆项目到本地
+
+```bash
+git clone https://github.com/zhangMonday/jlc-auto-sign.git
+cd jlc-auto-sign
+```
+
+2. 安装Python依赖
+
+```bash
+pip install selenium requests
+```
+
+3. 安装ChromeDriver
+   · 访问［ChromeDriver］(https://developer.chrome.com/docs/chromedriver/downloads)下载页面
+   · 下载与你的Chrome版本匹配的ChromeDriver
+   · 将ChromeDriver添加到系统PATH中：
+     · Windows: 解压到 C:\Windows\system32\
+     · Linux/macOS: 解压到 /usr/local/bin/
+
+4. 运行脚本
+
+```bash
+python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...
+```
+
+---
+
 ### 成功运行结果（节选）
 ![成功运行结果](img/6.png)
 
