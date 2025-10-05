@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 23 * * *'
+    - cron: '0 11 * * *'
     #在这里设置运行时间，如果不知道怎么配置可以问AI
     #实际运行时间会比设置时间延迟一小时以内，取决于当时github资源占用情况。
 jobs:
