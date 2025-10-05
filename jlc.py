@@ -388,6 +388,64 @@ def get_user_nickname_from_api(driver, account_index):
         log(f"账号 {account_index} - ⚠ 获取用户昵称失败: {e}")
         return None
 
+def check_oshwhub_sign_status(driver, account_index):
+    """检查开源平台签到状态 - 更准确的检测方法"""
+    try:
+        # 方法1: 查找签到按钮文本
+        sign_buttons = driver.find_elements(By.XPATH, '//span[contains(text(), "立即签到")]')
+        if sign_buttons:
+            for btn in sign_buttons:
+                if btn.is_displayed() and btn.is_enabled():
+                    log(f"账号 {account_index} - ✅ 检测到可点击的'立即签到'按钮")
+                    return False  # 未签到
+        
+        # 方法2: 查找已签到文本
+        signed_elements = driver.find_elements(By.XPATH, '//span[contains(text(), "已签到")]')
+        if signed_elements:
+            for element in signed_elements:
+                if element.is_displayed():
+                    log(f"账号 {account_index} - ✅ 检测到'已签到'状态")
+                    return True  # 已签到
+        
+        # 方法3: 检查签到按钮的CSS类或属性
+        try:
+            # 查找包含签到相关类的元素
+            sign_elements = driver.find_elements(By.CSS_SELECTOR, '[class*="sign"], [class*="checkin"], [class*="Sign"]')
+            for element in sign_elements:
+                if element.is_displayed():
+                    element_text = element.text.lower()
+                    if "立即签到" in element_text or "签到" in element_text:
+                        log(f"账号 {account_index} - ✅ 通过CSS类检测到签到按钮")
+                        return False
+                    elif "已签到" in element_text:
+                        log(f"账号 {account_index} - ✅ 通过CSS类检测到已签到状态")
+                        return True
+        except:
+            pass
+        
+        # 方法4: 如果以上方法都无法确定，尝试刷新页面再检查
+        log(f"账号 {account_index} - ⚠ 无法确定签到状态，尝试刷新页面")
+        driver.refresh()
+        time.sleep(5)
+        
+        # 重新检查
+        sign_buttons = driver.find_elements(By.XPATH, '//span[contains(text(), "立即签到")]')
+        if sign_buttons:
+            log(f"账号 {account_index} - ✅ 刷新后检测到'立即签到'按钮")
+            return False
+        
+        signed_elements = driver.find_elements(By.XPATH, '//span[contains(text(), "已签到")]')
+        if signed_elements:
+            log(f"账号 {account_index} - ✅ 刷新后检测到'已签到'状态")
+            return True
+        
+        log(f"账号 {account_index} - ❓ 无法确定签到状态，默认认为未签到")
+        return False
+        
+    except Exception as e:
+        log(f"账号 {account_index} - ❌ 检查签到状态时出错: {e}")
+        return False  # 出错时默认认为未签到
+
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行完整的签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
@@ -587,47 +645,55 @@ def sign_in_account(username, password, account_index, total_accounts):
         try:
             driver.refresh()
             time.sleep(4)
+            log(f"账号 {account_index} - 已刷新页面")
         except:
-            pass
+            log(f"账号 {account_index} - 刷新页面失败")
 
-        # 执行开源平台签到 - 修复签到检测逻辑
-        try:
-            # 先检查是否已经签到
+        # 执行开源平台签到 - 使用改进的检测逻辑
+        log(f"账号 {account_index} - 检查开源平台签到状态...")
+        is_already_signed = check_oshwhub_sign_status(driver, account_index)
+        
+        if is_already_signed:
+            # 已经签到过
+            log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
+            result['oshwhub_status'] = '已签到'
+            result['oshwhub_success'] = True
+            
+            # 即使已签到，也尝试点击礼包按钮
+            log(f"账号 {account_index} - 开始点击礼包按钮...")
+            click_gift_buttons(driver, account_index)
+        else:
+            # 未签到，尝试点击签到按钮
+            log(f"账号 {account_index} - 检测到未签到，尝试执行签到...")
             try:
-                signed_element = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
-                log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
-                result['oshwhub_status'] = '已签到'
-                result['oshwhub_success'] = True
-                
-                # 即使已签到，也尝试点击礼包按钮
-                log(f"账号 {account_index} - 开始点击礼包按钮...")
-                click_gift_buttons(driver, account_index)
-                
-            except:
-                # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
-                try:
-                    sign_btn = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
-                    )
-                    sign_btn.click()
-                    log(f"账号 {account_index} - ✅ 开源平台签到成功！")
-                    result['oshwhub_status'] = '签到成功'
-                    result['oshwhub_success'] = True
-                    
-                    # 等待签到完成
-                    time.sleep(2)
-                    
-                    # 5. 签到完成后点击7天好礼和月度好礼
-                    log(f"账号 {account_index} - 开始点击礼包按钮...")
-                    click_gift_buttons(driver, account_index)
-                    
-                except Exception as e:
-                    log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
+                # 查找所有可能的签到按钮
+                sign_buttons = driver.find_elements(By.XPATH, '//span[contains(text(), "立即签到")]')
+                if sign_buttons:
+                    for btn in sign_buttons:
+                        if btn.is_displayed() and btn.is_enabled():
+                            log(f"账号 {account_index} - 找到可点击的签到按钮，正在点击...")
+                            btn.click()
+                            log(f"账号 {account_index} - ✅ 开源平台签到成功！")
+                            result['oshwhub_status'] = '签到成功'
+                            result['oshwhub_success'] = True
+                            
+                            # 等待签到完成
+                            time.sleep(3)
+                            
+                            # 签到完成后点击7天好礼和月度好礼
+                            log(f"账号 {account_index} - 开始点击礼包按钮...")
+                            click_gift_buttons(driver, account_index)
+                            break
+                    else:
+                        log(f"账号 {account_index} - ❌ 找到签到按钮但无法点击")
+                        result['oshwhub_status'] = '签到失败'
+                else:
+                    log(f"账号 {account_index} - ❌ 未找到签到按钮")
                     result['oshwhub_status'] = '签到失败'
                     
-        except Exception as e:
-            log(f"账号 {account_index} - ❌ 开源平台签到异常: {e}")
-            result['oshwhub_status'] = '签到异常'
+            except Exception as e:
+                log(f"账号 {account_index} - ❌ 点击签到按钮时出错: {e}")
+                result['oshwhub_status'] = '签到异常'
 
         time.sleep(3)
 
