@@ -130,8 +130,8 @@ python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...
 ![成功运行结果](img/6.png)
 
 ## 致谢  
-[本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！]
+本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！
 
-[本项目参考了 [https://github.com/sudojia/AutoTaskScript](https://github.com/sudojia/AutoTaskScript/) 的嘉立创脚本，感谢！]
+本项目参考了 [https://github.com/sudojia/AutoTaskScript](https://github.com/sudojia/AutoTaskScript/) 的嘉立创脚本，感谢！
 
 欢迎提交issue和PR，如果本项目对你有帮助，请给我点个star~
