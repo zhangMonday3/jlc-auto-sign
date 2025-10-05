@@ -433,7 +433,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
                     log(f"账号 {account_index} - 成功跳转回签到页面")
                     break
-                time.sleep(2)
+                time.sleep(5)
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
@@ -443,7 +443,7 @@ def sign_in_account(username, password, account_index, total_accounts):
 
         try:
             driver.refresh()
-            time.sleep(4)
+            time.sleep(8)
         except:
             pass
 
