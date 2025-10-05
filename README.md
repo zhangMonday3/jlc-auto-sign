@@ -7,7 +7,11 @@
 ---
 
 ## 项目简介  
-该项目利用 **Github Actions** 实现立创开源平台以及立创金豆的每天自动化签到，支持多账号签到与过滑块验证。
+该项目利用 **Github Actions** 实现立创开源平台以及立创金豆的每天自动化签到
+支持多账号签到
+支持自动过滑块验证
+支持自动通过登录信息抓包X-JLC-AccessToken和secretkey实现金豆签到
+支持金豆奖励领取
 
 ---
 
@@ -58,5 +62,8 @@
 ![成功运行结果](img/6.jpg)
 
 ## 致谢  
-本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！
+[本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！]
+
+[本项目参考了 [https://github.com/sudojia/AutoTaskScript](https://github.com/sudojia/AutoTaskScript/) 的嘉立创脚本，感谢！]
+
 欢迎提交issue和PR，如果本项目对你有帮助，请给我点个star~
