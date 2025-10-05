@@ -95,6 +95,110 @@ def extract_secretkey_from_devtools(driver):
     
     return secretkey
 
+class OSHWHubClient:
+    """开源平台 API 客户端"""
+    
+    def __init__(self, cookies, account_index):
+        self.base_url = "https://oshwhub.com"
+        self.headers = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'zh-CN,zh;q=0.9,ko;q=0.8,en-US;q=0.7,en;q=0.6,zh-TW;q=0.5',
+            'Cookie': cookies
+        }
+        self.account_index = account_index
+        self.user_id = None
+        self.nickname = "未知"
+        self.current_points = 0  # 当前积分
+        self.sign_success = False  # 签到是否成功
+        
+    def send_request(self, url, method='GET', data=None):
+        """发送 API 请求"""
+        try:
+            if method.upper() == 'GET':
+                response = requests.get(url, headers=self.headers, timeout=10)
+            else:
+                response = requests.post(url, headers=self.headers, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                log(f"账号 {self.account_index} - ❌ 请求失败，状态码: {response.status_code}")
+                return None
+        except Exception as e:
+            log(f"账号 {self.account_index} - ❌ 请求异常 ({url}): {e}")
+            return None
+    
+    def get_user_info(self):
+        """获取用户信息"""
+        log(f"账号 {self.account_index} - 获取用户信息...")
+        url = f"{self.base_url}/api/users"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            user_info = data.get('result', {})
+            self.nickname = user_info.get('nickname', '未知')
+            self.current_points = user_info.get('points', 0)
+            self.user_id = user_info.get('uuid')
+            log(f"账号 {self.account_index} - ✅ 用户信息获取成功")
+            log(f"账号 {self.account_index} - 昵称: {self.nickname}")
+            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
+            return True
+        else:
+            error_msg = data.get('message', '未知错误') if data else '请求失败'
+            log(f"账号 {self.account_index} - ❌ 获取用户信息失败: {error_msg}")
+            return False
+    
+    def sign_in(self):
+        """执行签到"""
+        log(f"账号 {self.account_index} - 执行签到...")
+        url = f"{self.base_url}/api/users/signIn"
+        data = self.send_request(url, 'POST', {"_t": int(time.time() * 1000)})
+        
+        if data and data.get('success'):
+            log(f"账号 {self.account_index} - ✅ 签到成功")
+            self.sign_success = True
+            return True
+        else:
+            error_msg = data.get('message', '未知错误') if data else '请求失败'
+            log(f"账号 {self.account_index} - ❌ 签到失败: {error_msg}")
+            return False
+    
+    def get_points(self):
+        """获取积分数量"""
+        log(f"账号 {self.account_index} - 获取积分数量...")
+        url = f"{self.base_url}/api/users"
+        data = self.send_request(url)
+        
+        if data and data.get('success'):
+            self.current_points = data.get('result', {}).get('points', 0)
+            log(f"账号 {self.account_index} - 当前积分: {self.current_points}")
+            return self.current_points
+        else:
+            log(f"账号 {self.account_index} - ❌ 获取积分数量失败")
+            return 0
+    
+    def execute_full_process(self):
+        """执行完整的开源平台签到流程"""
+        log(f"账号 {self.account_index} - 开始开源平台签到流程")
+        
+        # 1. 获取用户信息
+        if not self.get_user_info():
+            return False
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 2. 执行签到
+        self.sign_in()
+        
+        time.sleep(random.randint(1, 2))
+        
+        # 3. 获取签到后的积分数量
+        self.get_points()
+        
+        return True
+
 class JLCClient:
     """嘉立创 API 客户端"""
     
@@ -230,7 +334,7 @@ class JLCClient:
     
     def execute_full_process(self):
         """执行完整的金豆签到流程"""
-        log(f"账号 {self.account_index} - 开始完整金豆签到流程")
+        log(f"账号 {self.account_index} - 开始金豆签到流程")
         
         # 1. 获取用户信息
         if not self.get_user_info():
@@ -293,6 +397,27 @@ def navigate_and_interact_m_jlc(driver, account_index):
     except Exception as e:
         log(f"账号 {account_index} - 交互操作出错: {e}")
 
+def get_oshwhub_cookies(driver):
+    """从浏览器获取开源平台的Cookie"""
+    try:
+        cookies = driver.get_cookies()
+        cookie_dict = {}
+        
+        for cookie in cookies:
+            if cookie['name'] in ['oshwhub_session', 'acw_tc', 'oshwhub_csrf']:
+                cookie_dict[cookie['name']] = cookie['value']
+        
+        if cookie_dict:
+            cookie_string = '; '.join([f"{k}={v}" for k, v in cookie_dict.items()])
+            log(f"✅ 成功获取开源平台Cookie: {list(cookie_dict.keys())}")
+            return cookie_string
+        else:
+            log("❌ 未找到开源平台所需的Cookie")
+            return None
+    except Exception as e:
+        log(f"❌ 获取Cookie失败: {e}")
+        return None
+
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行完整的签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
@@ -321,6 +446,8 @@ def sign_in_account(username, password, account_index, total_accounts):
         'account_index': account_index,
         'oshwhub_status': '未知',
         'oshwhub_success': False,
+        'oshwhub_points': 0,
+        'oshwhub_nickname': '未知',
         'jindou_status': '未知',
         'jindou_success': False,
         'jindou_reward': 0,
@@ -437,7 +564,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
-        # 3. 开源平台签到
+        # 3. 开源平台签到（使用API方式）
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
@@ -447,25 +574,26 @@ def sign_in_account(username, password, account_index, total_accounts):
         except:
             pass
 
-        # 执行开源平台签到
-        try:
-            sign_btn = wait.until(
-                EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
-            )
-            sign_btn.click()
-            log(f"账号 {account_index} - ✅ 开源平台签到成功！")
-            result['oshwhub_status'] = '签到成功'
-            result['oshwhub_success'] = True
-        except Exception as e:
-            log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
-            try:
-                signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
-                log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
-                result['oshwhub_status'] = '已签到'
-                result['oshwhub_success'] = True
-            except:
-                log(f"账号 {account_index} - ❌ 开源平台签到失败")
-                result['oshwhub_status'] = '签到失败'
+        # 获取Cookie并执行API签到
+        oshwhub_cookies = get_oshwhub_cookies(driver)
+        
+        if oshwhub_cookies:
+            oshwhub_client = OSHWHubClient(oshwhub_cookies, account_index)
+            oshwhub_success = oshwhub_client.execute_full_process()
+            
+            # 记录开源平台签到结果
+            result['oshwhub_success'] = oshwhub_success
+            result['oshwhub_status'] = '签到成功' if oshwhub_client.sign_success else '签到失败'
+            result['oshwhub_points'] = oshwhub_client.current_points
+            result['oshwhub_nickname'] = oshwhub_client.nickname
+            
+            if oshwhub_success:
+                log(f"账号 {account_index} - ✅ 开源平台签到流程完成")
+            else:
+                log(f"账号 {account_index} - ❌ 开源平台签到流程失败")
+        else:
+            log(f"账号 {account_index} - ❌ 无法获取开源平台Cookie，跳过API签到")
+            result['oshwhub_status'] = 'Cookie获取失败'
 
         time.sleep(3)
 
@@ -555,6 +683,9 @@ def main():
         
         log(f"账号 {account_index} 详细结果:")
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
+        if result['oshwhub_nickname'] != '未知':
+            log(f"  ├── 用户昵称: {result['oshwhub_nickname']}")
+        log(f"  ├── 当前积分: {result['oshwhub_points']}")
         log(f"  ├── 金豆签到: {result['jindou_status']}")
         
         if result['jindou_reward'] > 0:
