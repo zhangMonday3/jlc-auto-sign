@@ -211,7 +211,7 @@ class JLCClient:
             return True
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
-            log(f"账号 {self.account_index} - ❌ 领取奖励失败: {error_msg}")
+            log(f"账号 {account_index} - ❌ 领取奖励失败: {error_msg}")
             return False
     
     def get_points(self):
@@ -292,6 +292,34 @@ def navigate_and_interact_m_jlc(driver, account_index):
         
     except Exception as e:
         log(f"账号 {account_index} - 交互操作出错: {e}")
+
+def click_gift_buttons(driver, account_index):
+    """点击7天好礼和月度好礼按钮"""
+    try:
+        # 等待一秒
+        time.sleep(1)
+        
+        # 尝试点击7天好礼
+        try:
+            seven_day_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="7天好礼"]')
+            seven_day_gift.click()
+            log(f"账号 {account_index} - ✅ 尝试点击7天好礼")
+        except Exception as e:
+            log(f"账号 {account_index} - ⚠ 无法点击7天好礼: {e}")
+        
+        # 等待一秒
+        time.sleep(1)
+        
+        # 尝试点击月度好礼
+        try:
+            monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
+            monthly_gift.click()
+            log(f"账号 {account_index} - ✅ 尝试点击月度好礼")
+        except Exception as e:
+            log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
+            
+    except Exception as e:
+        log(f"账号 {account_index} - ❌ 点击礼包按钮时出错: {e}")
 
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行完整的签到流程"""
@@ -497,6 +525,11 @@ def sign_in_account(username, password, account_index, total_accounts):
             log(f"账号 {account_index} - ✅ 开源平台签到成功！")
             result['oshwhub_status'] = '签到成功'
             result['oshwhub_success'] = True
+            
+            # 4. 签到完成后点击7天好礼和月度好礼
+            log(f"账号 {account_index} - 开始点击礼包按钮...")
+            click_gift_buttons(driver, account_index)
+            
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
             try:
@@ -504,13 +537,18 @@ def sign_in_account(username, password, account_index, total_accounts):
                 log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
                 result['oshwhub_status'] = '已签到'
                 result['oshwhub_success'] = True
+                
+                # 即使已签到，也尝试点击礼包按钮
+                log(f"账号 {account_index} - 开始点击礼包按钮...")
+                click_gift_buttons(driver, account_index)
+                
             except:
                 log(f"账号 {account_index} - ❌ 开源平台签到失败")
                 result['oshwhub_status'] = '签到失败'
 
         time.sleep(3)
 
-        # 4. 金豆签到流程
+        # 5. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
