@@ -110,8 +110,9 @@ class JLCClient:
         }
         self.account_index = account_index
         self.message = ""
-        self.gain_num = 0  # 本次签到获得的金豆数量
-        self.current_points = 0  # 当前金豆总数
+        self.jindou_reward = 0  # 本次获得金豆
+        self.current_jindou = 0  # 当前金豆总数
+        self.sign_status = "未知"  # 签到状态
         
     def send_request(self, url, method='GET'):
         """发送 API 请求"""
@@ -137,7 +138,7 @@ class JLCClient:
         data = self.send_request(url)
         
         if data and data.get('success'):
-            log(f"账号 {self.account_index} - ✅ 获取用户信息成功")
+            log(f"账号 {self.account_index} - ✅ 用户信息获取成功")
             return True
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
@@ -154,15 +155,17 @@ class JLCClient:
             have_sign_in = data.get('data', {}).get('haveSignIn', False)
             if have_sign_in:
                 log(f"账号 {self.account_index} - ✅ 今日已签到")
-                self.message += "今日已签到\n"
-                return True  # 已签到
+                self.sign_status = "已签到"
+                return True
             else:
                 log(f"账号 {self.account_index} - 今日未签到")
-                return False  # 未签到
+                self.sign_status = "未签到"
+                return False
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
             log(f"账号 {self.account_index} - ❌ 检查签到状态失败: {error_msg}")
-            return None  # 检查失败
+            self.sign_status = "检查失败"
+            return None
     
     def sign_in(self):
         """执行签到"""
@@ -174,14 +177,13 @@ class JLCClient:
             gain_num = data.get('data', {}).get('gainNum')
             if gain_num:
                 # 直接签到成功，获得金豆
-                self.gain_num = gain_num
+                self.jindou_reward = gain_num
                 log(f"账号 {self.account_index} - ✅ 签到成功，金豆+{gain_num}")
-                self.message += f"签到成功，金豆+{gain_num}\n"
+                self.sign_status = "签到成功"
                 return True
             else:
                 # 有奖励可领取，先领取奖励
                 log(f"账号 {self.account_index} - 有奖励可领取，先领取奖励")
-                self.message += "有奖励可领取\n"
                 
                 # 领取奖励
                 if self.receive_voucher():
@@ -190,10 +192,12 @@ class JLCClient:
                     log(f"账号 {self.account_index} - 奖励领取成功，重新执行签到")
                     return self.sign_in()  # 重新执行签到
                 else:
+                    self.sign_status = "领取奖励失败"
                     return False
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
             log(f"账号 {self.account_index} - ❌ 签到失败: {error_msg}")
+            self.sign_status = "签到失败"
             return False
     
     def receive_voucher(self):
@@ -204,7 +208,6 @@ class JLCClient:
         
         if data and data.get('success'):
             log(f"账号 {self.account_index} - ✅ 领取成功")
-            self.message += "领取成功\n"
             return True
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
@@ -218,10 +221,9 @@ class JLCClient:
         data = self.send_request(url)
         
         if data and data.get('success'):
-            self.current_points = data.get('data', {}).get('integralVoucher', 0)
-            log(f"账号 {self.account_index} - 当前金豆: {self.current_points}")
-            self.message += f"当前金豆: {self.current_points}\n\n"
-            return self.current_points
+            self.current_jindou = data.get('data', {}).get('integralVoucher', 0)
+            log(f"账号 {self.account_index} - 当前金豆: {self.current_jindou}")
+            return self.current_jindou
         else:
             log(f"账号 {self.account_index} - ❌ 获取金豆数量失败")
             return 0
@@ -313,56 +315,161 @@ def sign_in_account(username, password, account_index, total_accounts):
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
     wait = WebDriverWait(driver, 25)
-    account_success = False
-    jlc_message = ""
-    oshwhub_success = False
-    jindou_success = False
-    jindou_gain = 0
-    current_points = 0
+    
+    # 记录详细结果
+    result = {
+        'account_index': account_index,
+        'oshwhub_status': '未知',
+        'oshwhub_success': False,
+        'jindou_status': '未知',
+        'jindou_success': False,
+        'jindou_reward': 0,
+        'current_jindou': 0,
+        'token_extracted': False,
+        'secretkey_extracted': False
+    }
 
     try:
-        # 开源平台签到流程
+        # 1. 打开签到页
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
         
         time.sleep(12 + random.randint(2, 5))
         current_url = driver.current_url
 
+        # 2. 登录流程
         if "passport.jlc.com/login" in current_url:
             log(f"账号 {account_index} - 检测到未登录状态，正在执行登录流程...")
-            user_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@placeholder="请输入手机号"]')))
-            user_input.send_keys(username)
-            time.sleep(1 + random.random())
-            
-            pass_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@placeholder="请输入密码"]')))
-            pass_input.send_keys(password)
-            time.sleep(1 + random.random())
-            
-            login_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
-            login_btn.click()
-            log(f"账号 {account_index} - 已提交登录表单")
-            time.sleep(8 + random.randint(1, 3))
-        
-        # 开源平台签到
+
+            try:
+                phone_btn = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[contains(text(),"账号登录")]'))
+                )
+                phone_btn.click()
+                log(f"账号 {account_index} - 已切换账号登录")
+                time.sleep(3)
+            except Exception as e:
+                log(f"账号 {account_index} - 账号登录按钮可能已默认选中: {e}")
+
+            # 输入账号密码
+            try:
+                user_input = wait.until(
+                    EC.presence_of_element_located((By.XPATH, '//input[@placeholder="请输入手机号码 / 客户编号 / 邮箱"]'))
+                )
+                user_input.clear()
+                user_input.send_keys(username)
+
+                pwd_input = wait.until(
+                    EC.presence_of_element_located((By.XPATH, '//input[@type="password"]'))
+                )
+                pwd_input.clear()
+                pwd_input.send_keys(password)
+                log(f"账号 {account_index} - 已输入账号密码")
+            except Exception as e:
+                log(f"账号 {account_index} - ❌ 登录输入框未找到: {e}")
+                result['oshwhub_status'] = '登录失败'
+                return result
+
+            # 点击登录
+            try:
+                login_btn = wait.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "button.submit"))
+                )
+                login_btn.click()
+                log(f"账号 {account_index} - 已点击登录按钮")
+            except Exception as e:
+                log(f"账号 {account_index} - ❌ 登录按钮定位失败: {e}")
+                result['oshwhub_status'] = '登录失败'
+                return result
+
+            # 处理滑块验证
+            time.sleep(8)
+            try:
+                slider = wait.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
+                )
+                
+                track = wait.until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".nc_scale"))
+                )
+                
+                track_width = track.size['width']
+                slider_width = slider.size['width']
+                move_distance = track_width - slider_width - 10
+                
+                log(f"账号 {account_index} - 检测到滑块验证码，滑动距离: {move_distance}px")
+                
+                actions = ActionChains(driver)
+                actions.click_and_hold(slider).perform()
+                time.sleep(0.5)
+                
+                # 分段滑动
+                quick_steps = int(move_distance * 0.7)
+                for i in range(quick_steps):
+                    if i % 10 == 0:
+                        time.sleep(0.01)
+                    actions.move_by_offset(1, 0).perform()
+                
+                time.sleep(0.2)
+                
+                slow_steps = move_distance - quick_steps
+                for i in range(slow_steps):
+                    if i % 3 == 0:
+                        time.sleep(0.02)
+                    y_offset = 1 if i % 2 == 0 else -1 if i % 5 == 0 else 0
+                    actions.move_by_offset(1, y_offset).perform()
+                
+                actions.release().perform()
+                log(f"账号 {account_index} - 滑块拖动完成")
+                time.sleep(5)
+                
+            except Exception as e:
+                log(f"账号 {account_index} - 滑块验证处理: {e}")
+
+            # 等待跳转
+            log(f"账号 {account_index} - 等待登录跳转...")
+            for i in range(25):
+                current_url = driver.current_url
+                if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
+                    log(f"账号 {account_index} - 成功跳转回签到页面")
+                    break
+                time.sleep(2)
+            else:
+                log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
+
+        # 3. 开源平台签到
+        log(f"账号 {account_index} - 等待签到页加载...")
+        time.sleep(5)
+
         try:
-            sign_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]')))
+            driver.refresh()
+            time.sleep(4)
+        except:
+            pass
+
+        # 执行开源平台签到
+        try:
+            sign_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
+            )
             sign_btn.click()
             log(f"账号 {account_index} - ✅ 开源平台签到成功！")
-            oshwhub_success = True
-            account_success = True
+            result['oshwhub_status'] = '签到成功'
+            result['oshwhub_success'] = True
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
             try:
                 signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
                 log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
-                oshwhub_success = True
-                account_success = True
+                result['oshwhub_status'] = '已签到'
+                result['oshwhub_success'] = True
             except:
                 log(f"账号 {account_index} - ❌ 开源平台签到失败")
+                result['oshwhub_status'] = '签到失败'
 
         time.sleep(3)
 
-        # 金豆签到流程
+        # 4. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
@@ -373,39 +480,37 @@ def sign_in_account(username, password, account_index, total_accounts):
         access_token = extract_token_from_local_storage(driver)
         secretkey = extract_secretkey_from_devtools(driver)
         
+        result['token_extracted'] = bool(access_token)
+        result['secretkey_extracted'] = bool(secretkey)
+        
         if access_token and secretkey:
             log(f"账号 {account_index} - ✅ 成功提取 token 和 secretkey")
             
             jlc_client = JLCClient(access_token, secretkey, account_index)
             jindou_success = jlc_client.execute_full_process()
-            jlc_message = jlc_client.message
-            jindou_gain = jlc_client.gain_num
-            current_points = jlc_client.current_points
+            
+            # 记录金豆签到结果
+            result['jindou_success'] = jindou_success
+            result['jindou_status'] = jlc_client.sign_status
+            result['jindou_reward'] = jlc_client.jindou_reward
+            result['current_jindou'] = jlc_client.current_jindou
             
             if jindou_success:
-                account_success = account_success and True
                 log(f"账号 {account_index} - ✅ 金豆签到流程完成")
             else:
                 log(f"账号 {account_index} - ❌ 金豆签到流程失败")
         else:
             log(f"账号 {account_index} - ❌ 无法提取到 token 或 secretkey，跳过金豆签到")
+            result['jindou_status'] = 'Token提取失败'
 
     except Exception as e:
         log(f"账号 {account_index} - ❌ 程序执行错误: {e}")
+        result['oshwhub_status'] = '执行异常'
     finally:
         driver.quit()
         log(f"账号 {account_index} - 浏览器已关闭")
     
-    # 返回详细的签到结果
-    return {
-        "account_index": account_index,
-        "success": account_success,
-        "oshwhub_success": oshwhub_success,
-        "jindou_success": jindou_success,
-        "jindou_gain": jindou_gain,
-        "current_points": current_points,
-        "jlc_message": jlc_message
-    }
+    return result
 
 def main():
     if len(sys.argv) < 3:
@@ -423,66 +528,82 @@ def main():
     total_accounts = len(usernames)
     log(f"开始处理 {total_accounts} 个账号的签到任务")
     
-    success_count = 0
-    failed_accounts = []
-    account_results = []  # 存储每个账号的详细结果
+    # 存储所有账号的结果
+    all_results = []
     
     for i, (username, password) in enumerate(zip(usernames, passwords), 1):
         log(f"开始处理第 {i} 个账号")
         result = sign_in_account(username, password, i, total_accounts)
-        account_results.append(result)
-        
-        if result["success"]:
-            success_count += 1
-            log(f"✅ 第 {i} 个账号签到成功")
-        else:
-            failed_accounts.append(i)
-            log(f"❌ 第 {i} 个账号签到失败")
+        all_results.append(result)
         
         if i < total_accounts:
             wait_time = random.randint(15, 40)
             log(f"等待 {wait_time} 秒后处理下一个账号...")
             time.sleep(wait_time)
     
-    # 详细结果总结
-    log("\n" + "=" * 50)
-    log("签到任务详细结果:")
-    for result in account_results:
-        log(f"\n账号 {result['account_index']} 结果:")
-        log(f"开源平台签到: {'成功 ✅' if result['oshwhub_success'] else '失败 ❌'}")
+    # 输出详细总结
+    log("=" * 70)
+    log("📊 详细签到任务完成总结")
+    log("=" * 70)
+    
+    oshwhub_success_count = 0
+    jindou_success_count = 0
+    total_jindou_reward = 0
+    
+    for result in all_results:
+        account_index = result['account_index']
         
+        log(f"账号 {account_index} 详细结果:")
+        log(f"  ├── 开源平台: {result['oshwhub_status']}")
+        log(f"  ├── 金豆签到: {result['jindou_status']}")
+        
+        if result['jindou_reward'] > 0:
+            log(f"  ├── 本次获得金豆: +{result['jindou_reward']}")
+            total_jindou_reward += result['jindou_reward']
+        
+        if result['current_jindou'] > 0:
+            log(f"  ├── 当前金豆总数: {result['current_jindou']}")
+        
+        log(f"  ├── Token提取: {'成功' if result['token_extracted'] else '失败'}")
+        log(f"  └── SecretKey提取: {'成功' if result['secretkey_extracted'] else '失败'}")
+        
+        if result['oshwhub_success']:
+            oshwhub_success_count += 1
         if result['jindou_success']:
-            log(f"金豆签到: 成功 ✅")
-            if result['jindou_gain'] > 0:
-                log(f"本次获得金豆: +{result['jindou_gain']}")
-            else:
-                log(f"今日已签到，未获得新金豆")
-            log(f"当前金豆总数: {result['current_points']}")
-        else:
-            log(f"金豆签到: 失败 ❌")
+            jindou_success_count += 1
         
-        if result['jlc_message']:
-            log(f"金豆签到详情:\n{result['jlc_message']}")
+        log("  " + "-" * 50)
     
-    # 总体总结
-    log("\n" + "=" * 50)
-    log("签到任务完成总结:")
-    log(f"总账号数: {total_accounts}")
-    log(f"成功数: {success_count}")
-    log(f"失败数: {len(failed_accounts)}")
+    # 总体统计
+    log("📈 总体统计:")
+    log(f"  ├── 总账号数: {total_accounts}")
+    log(f"  ├── 开源平台签到成功: {oshwhub_success_count}/{total_accounts}")
+    log(f"  ├── 金豆签到成功: {jindou_success_count}/{total_accounts}")
     
-    if failed_accounts:
-        log(f"失败的账号序号: {', '.join(map(str, failed_accounts))}")
-    else:
-        log("✅ 所有账号签到成功!")
+    if total_jindou_reward > 0:
+        log(f"  ├── 总计获得金豆: +{total_jindou_reward}")
     
-    # 金豆统计
-    total_gain = sum(result['jindou_gain'] for result in account_results)
-    total_points = sum(result['current_points'] for result in account_results)
-    log(f"\n金豆统计:")
-    log(f"本次签到获得金豆总数: {total_gain}")
-    log(f"所有账号当前金豆总数: {total_points}")
-    log("=" * 50)
+    # 计算成功率
+    oshwhub_rate = (oshwhub_success_count / total_accounts) * 100
+    jindou_rate = (jindou_success_count / total_accounts) * 100
+    
+    log(f"  ├── 开源平台成功率: {oshwhub_rate:.1f}%")
+    log(f"  └── 金豆签到成功率: {jindou_rate:.1f}%")
+    
+    # 失败账号列表
+    failed_oshwhub = [r['account_index'] for r in all_results if not r['oshwhub_success']]
+    failed_jindou = [r['account_index'] for r in all_results if not r['jindou_success']]
+    
+    if failed_oshwhub:
+        log(f"  ⚠ 开源平台失败账号: {', '.join(map(str, failed_oshwhub))}")
+    
+    if failed_jindou:
+        log(f"  ⚠ 金豆签到失败账号: {', '.join(map(str, failed_jindou))}")
+    
+    if not failed_oshwhub and not failed_jindou:
+        log("  🎉 所有账号全部签到成功!")
+    
+    log("=" * 70)
 
 if __name__ == "__main__":
     main()
