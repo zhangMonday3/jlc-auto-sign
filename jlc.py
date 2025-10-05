@@ -16,6 +16,19 @@ from selenium.webdriver.support import expected_conditions as EC
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
+def format_nickname(nickname):
+    """格式化昵称，只显示第一个字和最后一个字，中间用星号代替"""
+    if not nickname or len(nickname.strip()) == 0:
+        return "未知用户"
+    
+    nickname = nickname.strip()
+    if len(nickname) == 1:
+        return f"{nickname}*"
+    elif len(nickname) == 2:
+        return f"{nickname[0]}*"
+    else:
+        return f"{nickname[0]}{'*' * (len(nickname)-2)}{nickname[-1]}"
+
 def extract_token_from_local_storage(driver):
     """直接从 localStorage 提取 X-JLC-AccessToken"""
     try:
@@ -211,7 +224,7 @@ class JLCClient:
             return True
         else:
             error_msg = data.get('message', '未知错误') if data else '请求失败'
-            log(f"账号 {account_index} - ❌ 领取奖励失败: {error_msg}")
+            log(f"账号 {self.account_index} - ❌ 领取奖励失败: {error_msg}")
             return False
     
     def get_points(self):
@@ -321,6 +334,36 @@ def click_gift_buttons(driver, account_index):
     except Exception as e:
         log(f"账号 {account_index} - ❌ 点击礼包按钮时出错: {e}")
 
+def get_user_nickname_from_api(driver, account_index):
+    """通过API获取用户昵称"""
+    try:
+        # 获取当前页面的Cookie
+        cookies = driver.get_cookies()
+        cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        
+        headers = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'accept': 'application/json, text/plain, */*',
+            'cookie': cookie_str
+        }
+        
+        # 调用用户信息API
+        response = requests.get("https://oshwhub.com/api/users", headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and data.get('success'):
+                nickname = data.get('result', {}).get('nickname', '')
+                if nickname:
+                    formatted_nickname = format_nickname(nickname)
+                    log(f"账号 {account_index} - 👤 用户昵称: {formatted_nickname}")
+                    return formatted_nickname
+        
+        log(f"账号 {account_index} - ⚠ 无法获取用户昵称")
+        return None
+    except Exception as e:
+        log(f"账号 {account_index} - ⚠ 获取用户昵称失败: {e}")
+        return None
+
 def sign_in_account(username, password, account_index, total_accounts):
     """为单个账号执行完整的签到流程"""
     log(f"开始处理账号 {account_index}/{total_accounts}")
@@ -347,6 +390,7 @@ def sign_in_account(username, password, account_index, total_accounts):
     # 记录详细结果
     result = {
         'account_index': account_index,
+        'nickname': '未知',  # 新增昵称字段
         'oshwhub_status': '未知',
         'oshwhub_success': False,
         'jindou_status': '未知',
@@ -506,7 +550,12 @@ def sign_in_account(username, password, account_index, total_accounts):
                     except:
                         pass
 
-        # 3. 开源平台签到
+        # 3. 获取用户昵称
+        nickname = get_user_nickname_from_api(driver, account_index)
+        if nickname:
+            result['nickname'] = nickname
+
+        # 4. 开源平台签到
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
@@ -526,7 +575,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             result['oshwhub_status'] = '签到成功'
             result['oshwhub_success'] = True
             
-            # 4. 签到完成后点击7天好礼和月度好礼
+            # 5. 签到完成后点击7天好礼和月度好礼
             log(f"账号 {account_index} - 开始点击礼包按钮...")
             click_gift_buttons(driver, account_index)
             
@@ -548,7 +597,7 @@ def sign_in_account(username, password, account_index, total_accounts):
 
         time.sleep(3)
 
-        # 5. 金豆签到流程
+        # 6. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
@@ -631,8 +680,9 @@ def main():
     
     for result in all_results:
         account_index = result['account_index']
+        nickname = result.get('nickname', '未知')
         
-        log(f"账号 {account_index} 详细结果:")
+        log(f"账号 {account_index} ({nickname}) 详细结果:")
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
         log(f"  ├── 金豆签到: {result['jindou_status']}")
         
