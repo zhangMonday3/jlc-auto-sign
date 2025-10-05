@@ -691,7 +691,7 @@ def main():
         all_results.append(result)
         
         if i < total_accounts:
-            wait_time = random.randint(5, 10)
+            wait_time = random.randint(3, 5)
             log(f"等待 {wait_time} 秒后处理下一个账号...")
             time.sleep(wait_time)
     
