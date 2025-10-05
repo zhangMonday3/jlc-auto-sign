@@ -534,9 +534,9 @@ def sign_in_account(username, password, account_index, total_accounts):
                     log(f"账号 {account_index} - 成功跳转回签到页面")
                     break
                 
-                # 检查是否出现了"进入系统"按钮
+                # 检查是否出现了"进入系统"按钮 - 使用CSS选择器
                 try:
-                    enter_system_btn = driver.find_element(By.XPATH, '//span[contains(text(),"进入系统")]')
+                    enter_system_btn = driver.find_element(By.CSS_SELECTOR, "button.base-button.w-full.el-button--primary")
                     log(f"账号 {account_index} - 检测到'进入系统'按钮，正在点击...")
                     enter_system_btn.click()
                     log(f"账号 {account_index} - 已点击进入系统按钮，等待跳转...")
@@ -561,8 +561,8 @@ def sign_in_account(username, password, account_index, total_accounts):
             if "passport.jlc.com" in current_url:
                 log(f"账号 {account_index} - 仍然在登录页面，尝试再次处理...")
                 try:
-                    # 先尝试找进入系统按钮
-                    enter_system_btn = driver.find_element(By.XPATH, '//span[contains(text(),"进入系统")]')
+                    # 使用CSS选择器定位进入系统按钮
+                    enter_system_btn = driver.find_element(By.CSS_SELECTOR, "button.base-button.w-full.el-button--primary")
                     enter_system_btn.click()
                     log(f"账号 {account_index} - 已点击进入系统按钮")
                     time.sleep(5)
@@ -590,24 +590,11 @@ def sign_in_account(username, password, account_index, total_accounts):
         except:
             pass
 
-        # 执行开源平台签到
+        # 执行开源平台签到 - 修复签到检测逻辑
         try:
-            sign_btn = wait.until(
-                EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
-            )
-            sign_btn.click()
-            log(f"账号 {account_index} - ✅ 开源平台签到成功！")
-            result['oshwhub_status'] = '签到成功'
-            result['oshwhub_success'] = True
-            
-            # 5. 签到完成后点击7天好礼和月度好礼
-            log(f"账号 {account_index} - 开始点击礼包按钮...")
-            click_gift_buttons(driver, account_index)
-            
-        except Exception as e:
-            log(f"账号 {account_index} - ⚠ 开源平台签到按钮: {e}")
+            # 先检查是否已经签到
             try:
-                signed_text = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
+                signed_element = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
                 log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
                 result['oshwhub_status'] = '已签到'
                 result['oshwhub_success'] = True
@@ -617,8 +604,30 @@ def sign_in_account(username, password, account_index, total_accounts):
                 click_gift_buttons(driver, account_index)
                 
             except:
-                log(f"账号 {account_index} - ❌ 开源平台签到失败")
-                result['oshwhub_status'] = '签到失败'
+                # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
+                try:
+                    sign_btn = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
+                    )
+                    sign_btn.click()
+                    log(f"账号 {account_index} - ✅ 开源平台签到成功！")
+                    result['oshwhub_status'] = '签到成功'
+                    result['oshwhub_success'] = True
+                    
+                    # 等待签到完成
+                    time.sleep(2)
+                    
+                    # 5. 签到完成后点击7天好礼和月度好礼
+                    log(f"账号 {account_index} - 开始点击礼包按钮...")
+                    click_gift_buttons(driver, account_index)
+                    
+                except Exception as e:
+                    log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
+                    result['oshwhub_status'] = '签到失败'
+                    
+        except Exception as e:
+            log(f"账号 {account_index} - ❌ 开源平台签到异常: {e}")
+            result['oshwhub_status'] = '签到异常'
 
         time.sleep(3)
 
