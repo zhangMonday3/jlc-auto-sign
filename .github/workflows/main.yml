@@ -5,8 +5,9 @@ on:
   schedule:
     - cron: '0 23 * * *'
     - cron: '0 11 * * *'
-    #在这里设置运行时间，如果不知道怎么配置可以问AI
+    #在这里设置UTC运行时间，如果不知道怎么配置可以问AI
     #实际运行时间会比设置时间延迟一小时以内，取决于当时github资源占用情况。
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -19,6 +20,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.7
+
+      - name: 'Set Timezone to UTC+8'
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          echo "Current time: $(date)"
 
       - name: 'Install requirements'
         run: |
