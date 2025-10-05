@@ -103,9 +103,10 @@ class OSHWHubClient:
         self.headers = {
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
-            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'Accept-Encoding': 'gzip, deflate, br',
             'accept-language': 'zh-CN,zh;q=0.9,ko;q=0.8,en-US;q=0.7,en;q=0.6,zh-TW;q=0.5',
-            'Cookie': cookies
+            'Cookie': cookies,
+            'Content-Type': 'application/json',
         }
         self.account_index = account_index
         self.user_id = None
@@ -122,9 +123,15 @@ class OSHWHubClient:
                 response = requests.post(url, headers=self.headers, json=data, timeout=10)
             
             if response.status_code == 200:
-                return response.json()
+                try:
+                    return response.json()
+                except json.JSONDecodeError as e:
+                    log(f"账号 {self.account_index} - ❌ JSON 解析错误: {e}")
+                    log(f"账号 {self.account_index} - 响应内容: {response.text[:200]}...")
+                    return None
             else:
                 log(f"账号 {self.account_index} - ❌ 请求失败，状态码: {response.status_code}")
+                log(f"账号 {self.account_index} - 响应内容: {response.text[:200]}...")
                 return None
         except Exception as e:
             log(f"账号 {self.account_index} - ❌ 请求异常 ({url}): {e}")
@@ -154,7 +161,8 @@ class OSHWHubClient:
         """执行签到"""
         log(f"账号 {self.account_index} - 执行签到...")
         url = f"{self.base_url}/api/users/signIn"
-        data = self.send_request(url, 'POST', {"_t": int(time.time() * 1000)})
+        timestamp = int(time.time() * 1000)
+        data = self.send_request(url, 'POST', {"_t": timestamp})
         
         if data and data.get('success'):
             log(f"账号 {self.account_index} - ✅ 签到成功")
@@ -181,7 +189,7 @@ class OSHWHubClient:
     
     def execute_full_process(self):
         """执行完整的开源平台签到流程"""
-        log(f"账号 {self.account_index} - 开始开源平台签到流程")
+        log(f"账号 {self.account_index} - 开始完整开源平台签到流程")
         
         # 1. 获取用户信息
         if not self.get_user_info():
@@ -190,14 +198,14 @@ class OSHWHubClient:
         time.sleep(random.randint(1, 2))
         
         # 2. 执行签到
-        self.sign_in()
+        sign_result = self.sign_in()
         
         time.sleep(random.randint(1, 2))
         
         # 3. 获取签到后的积分数量
         self.get_points()
         
-        return True
+        return sign_result
 
 class JLCClient:
     """嘉立创 API 客户端"""
@@ -334,7 +342,7 @@ class JLCClient:
     
     def execute_full_process(self):
         """执行完整的金豆签到流程"""
-        log(f"账号 {self.account_index} - 开始金豆签到流程")
+        log(f"账号 {self.account_index} - 开始完整金豆签到流程")
         
         # 1. 获取用户信息
         if not self.get_user_info():
@@ -400,20 +408,44 @@ def navigate_and_interact_m_jlc(driver, account_index):
 def get_oshwhub_cookies(driver):
     """从浏览器获取开源平台的Cookie"""
     try:
+        # 确保页面完全加载
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        
+        # 刷新页面确保Cookie是最新的
+        driver.refresh()
+        time.sleep(5)
+        
         cookies = driver.get_cookies()
         cookie_dict = {}
         
-        for cookie in cookies:
-            if cookie['name'] in ['oshwhub_session', 'acw_tc', 'oshwhub_csrf']:
-                cookie_dict[cookie['name']] = cookie['value']
+        # 必需的Cookie字段
+        required_cookies = ['oshwhub_session', 'acw_tc', 'oshwhub_csrf']
+        found_cookies = []
         
-        if cookie_dict:
+        for cookie in cookies:
+            if cookie['name'] in required_cookies:
+                cookie_dict[cookie['name']] = cookie['value']
+                found_cookies.append(cookie['name'])
+        
+        # 检查是否获取到所有必需的Cookie
+        missing_cookies = set(required_cookies) - set(found_cookies)
+        
+        if cookie_dict and not missing_cookies:
             cookie_string = '; '.join([f"{k}={v}" for k, v in cookie_dict.items()])
-            log(f"✅ 成功获取开源平台Cookie: {list(cookie_dict.keys())}")
+            log(f"✅ 成功获取开源平台Cookie: {found_cookies}")
             return cookie_string
         else:
-            log("❌ 未找到开源平台所需的Cookie")
-            return None
+            if missing_cookies:
+                log(f"❌ 缺少必需的Cookie: {missing_cookies}")
+            else:
+                log("❌ 未找到开源平台所需的Cookie")
+            
+            # 尝试获取所有Cookie作为备选
+            all_cookies = '; '.join([f"{c['name']}={c['value']}" for c in cookies])
+            log(f"🔍 当前所有Cookie: {[c['name'] for c in cookies]}")
+            return all_cookies
     except Exception as e:
         log(f"❌ 获取Cookie失败: {e}")
         return None
@@ -568,6 +600,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
+        # 刷新页面确保状态最新
         try:
             driver.refresh()
             time.sleep(8)
@@ -578,6 +611,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         oshwhub_cookies = get_oshwhub_cookies(driver)
         
         if oshwhub_cookies:
+            log(f"账号 {account_index} - 开始开源平台API签到流程")
             oshwhub_client = OSHWHubClient(oshwhub_cookies, account_index)
             oshwhub_success = oshwhub_client.execute_full_process()
             
