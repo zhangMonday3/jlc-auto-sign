@@ -88,7 +88,9 @@
 环境要求
 
 · Python 3.7 或更高版本
+
 · Chrome 浏览器
+
 · ChromeDriver（与Chrome版本匹配）
 
 安装步骤
@@ -107,7 +109,7 @@ pip install selenium requests
 ```
 
 3. 安装ChromeDriver
-   · 访问［ChromeDriver］(https://developer.chrome.com/docs/chromedriver/downloads)下载页面
+   · 访问[ChromeDriver](https://developer.chrome.com/docs/chromedriver/downloads)下载页面
    · 下载与你的Chrome版本匹配的ChromeDriver
    · 将ChromeDriver添加到系统PATH中：
      · Windows: 解压到 C:\Windows\system32\
