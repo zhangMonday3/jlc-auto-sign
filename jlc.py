@@ -368,18 +368,26 @@ def click_gift_buttons(driver, account_index):
         try:
             seven_day_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="7天好礼"]')
             seven_day_gift.click()
-            log(f"账号 {account_index} - ✅ 尝试点击7天好礼")
+            log(f"账号 {account_index} - ✅ 成功点击7天好礼")
+            
+            # 等待2秒
+            time.sleep(2)
+            
+            # 刷新页面
+            driver.refresh()
+            log(f"账号 {account_index} - 🔄 页面已刷新")
+            
+            # 等待5秒让页面加载完毕
+            time.sleep(5)
+            
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 无法点击7天好礼: {e}")
-        
-        # 等待一秒
-        time.sleep(1)
         
         # 尝试点击月度好礼
         try:
             monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
             monthly_gift.click()
-            log(f"账号 {account_index} - ✅ 尝试点击月度好礼")
+            log(f"账号 {account_index} - ✅ 成功点击月度好礼")
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
             
