@@ -761,12 +761,27 @@ def process_single_account(username, password, account_index, total_accounts):
 
 def main():
     if len(sys.argv) < 3:
-        print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...")
-        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3")
+        print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3... [失败退出标志]")
+        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3 1")
+        print("失败退出标志: 0-关闭(默认), 1-开启(任意账号签到失败时返回非零退出码)")
         sys.exit(1)
     
     usernames = [u.strip() for u in sys.argv[1].split(',') if u.strip()]
     passwords = [p.strip() for p in sys.argv[2].split(',') if p.strip()]
+    
+    # 解析失败退出标志，默认为0（关闭）
+    enable_failure_exit = 0
+    if len(sys.argv) >= 4:
+        try:
+            enable_failure_exit = int(sys.argv[3])
+            if enable_failure_exit not in [0, 1]:
+                log("⚠ 失败退出标志只能是0或1，使用默认值0")
+                enable_failure_exit = 0
+        except ValueError:
+            log("⚠ 无法解析失败退出标志，使用默认值0")
+            enable_failure_exit = 0
+    
+    log(f"失败退出功能: {'开启' if enable_failure_exit else '关闭'}")
     
     if len(usernames) != len(passwords):
         log("❌ 错误: 账号和密码数量不匹配!")
@@ -799,6 +814,9 @@ def main():
     total_jindou_reward = 0
     retried_accounts = []
     
+    # 记录失败的账号
+    failed_accounts = []
+    
     for result in all_results:
         account_index = result['account_index']
         nickname = result.get('nickname', '未知')
@@ -806,6 +824,10 @@ def main():
         
         if retry_count > 0:
             retried_accounts.append(account_index)
+        
+        # 检查是否有失败情况
+        if not result['oshwhub_success'] or not result['jindou_success']:
+            failed_accounts.append(account_index)
         
         log(f"账号 {account_index} ({nickname}) 详细结果:" + (f" [重试{retry_count}次]" if retry_count > 0 else ""))
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
@@ -870,6 +892,18 @@ def main():
         log("  🎉 所有账号全部签到成功!")
     
     log("=" * 70)
+    
+    # 根据失败退出标志决定退出码
+    if enable_failure_exit and failed_accounts:
+        log(f"❌ 检测到失败的账号: {', '.join(map(str, failed_accounts))}")
+        log("❌ 由于失败退出功能已开启，返回非零报错退出码")
+        sys.exit(1)
+    else:
+        if enable_failure_exit:
+            log("✅ 所有账号签到成功，程序正常退出")
+        else:
+            log("✅ 程序正常退出（失败退出功能未开启）")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
