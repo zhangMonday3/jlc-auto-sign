@@ -211,7 +211,7 @@ class JLCClient:
             have_sign_in = data.get('data', {}).get('haveSignIn', False)
             if have_sign_in:
                 log(f"账号 {self.account_index} - ✅ 今日已签到")
-                self.sign_status = "已签到"
+                self.sign_status = "已签到过"
                 return True
             else:
                 log(f"账号 {self.account_index} - 今日未签到")
