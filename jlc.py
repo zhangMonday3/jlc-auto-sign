@@ -388,6 +388,11 @@ def click_gift_buttons(driver, account_index):
             monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
             monthly_gift.click()
             log(f"账号 {account_index} - ✅ 成功点击月度好礼")
+            
+            # 成功点击月度好礼后，等待1秒再进行下一步操作
+            time.sleep(1)
+            log(f"账号 {account_index} - ⏳ 月度好礼点击完成，等待1秒后继续")
+            
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
             
