@@ -345,7 +345,7 @@ def navigate_and_interact_m_jlc(driver, account_index):
                 element = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, selector)))
                 element.click()
                 log(f"账号 {account_index} - 点击导航元素: {selector}")
-                time.sleep(3)
+                time.sleep(2)
                 break
             except:
                 continue
@@ -375,7 +375,6 @@ def click_gift_buttons(driver, account_index):
             
             # 刷新页面
             driver.refresh()
-            log(f"账号 {account_index} - 🔄 页面已刷新")
             
             # 等待5秒让页面加载完毕
             time.sleep(5)
@@ -387,11 +386,8 @@ def click_gift_buttons(driver, account_index):
         try:
             monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
             monthly_gift.click()
-            log(f"账号 {account_index} - ✅ 成功点击月度好礼")
-            
-            # 成功点击月度好礼后，等待1秒再进行下一步操作
+            log(f"账号 {account_index} - ✅ 成功点击月度好礼")          
             time.sleep(1)
-            log(f"账号 {account_index} - ⏳ 月度好礼点击完成，等待1秒后继续")
             
         except Exception as e:
             log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
@@ -429,9 +425,9 @@ def get_user_nickname_from_api(driver, account_index):
         log(f"账号 {account_index} - ⚠ 获取用户昵称失败: {e}")
         return None
 
-def sign_in_account(username, password, account_index, total_accounts):
-    """为单个账号执行完整的签到流程"""
-    log(f"开始处理账号 {account_index}/{total_accounts}")
+def sign_in_account(username, password, account_index, total_accounts, retry_count=0):
+    """为单个账号执行完整的签到流程（包含重试机制）"""
+    log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (第{retry_count+1}次重试)" if retry_count > 0 else ""))
     
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
@@ -467,7 +463,8 @@ def sign_in_account(username, password, account_index, total_accounts):
         'final_jindou': 0,
         'jindou_reward': 0,
         'token_extracted': False,
-        'secretkey_extracted': False
+        'secretkey_extracted': False,
+        'retry_count': retry_count
     }
 
     try:
@@ -475,7 +472,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         driver.get("https://oshwhub.com/sign_in")
         log(f"账号 {account_index} - 已打开 JLC 签到页")
         
-        time.sleep(8 + random.randint(2, 5))
+        time.sleep(5 + random.randint(2, 3))
         current_url = driver.current_url
 
         # 2. 登录流程
@@ -488,7 +485,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 )
                 phone_btn.click()
                 log(f"账号 {account_index} - 已切换账号登录")
-                time.sleep(3)
+                time.sleep(2)
             except Exception as e:
                 log(f"账号 {account_index} - 账号登录按钮可能已默认选中: {e}")
 
@@ -524,7 +521,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                 return result
 
             # 处理滑块验证
-            time.sleep(6)
+            time.sleep(5)
             try:
                 slider = wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn_slide"))
@@ -698,7 +695,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
-        time.sleep(15)
+        time.sleep(10)
         
         navigate_and_interact_m_jlc(driver, account_index)
         
@@ -738,6 +735,30 @@ def sign_in_account(username, password, account_index, total_accounts):
     
     return result
 
+def should_retry(result):
+    """判断是否需要重试：开源平台签到失败或金豆签到失败"""
+    need_retry = (not result['oshwhub_success']) or (not result['jindou_success'])
+    if need_retry:
+        log(f"账号 {result['account_index']} - ⚠ 检测到失败情况，需要重试")
+    return need_retry
+
+def process_single_account(username, password, account_index, total_accounts):
+    """处理单个账号，包含重试机制"""
+    max_retries = 1  # 最多重试1次
+    result = None
+    
+    for attempt in range(max_retries + 1):  # 第一次执行 + 重试次数
+        result = sign_in_account(username, password, account_index, total_accounts, retry_count=attempt)
+        
+        # 检查是否需要重试
+        if not should_retry(result) or attempt >= max_retries:
+            break
+        else:
+            log(f"账号 {account_index} - 🔄 准备第 {attempt + 1} 次重试，等待 {random.randint(5, 10)} 秒后重新开始...")
+            time.sleep(random.randint(5, 10))
+    
+    return result
+
 def main():
     if len(sys.argv) < 3:
         print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...")
@@ -759,7 +780,7 @@ def main():
     
     for i, (username, password) in enumerate(zip(usernames, passwords), 1):
         log(f"开始处理第 {i} 个账号")
-        result = sign_in_account(username, password, i, total_accounts)
+        result = process_single_account(username, password, i, total_accounts)
         all_results.append(result)
         
         if i < total_accounts:
@@ -776,12 +797,17 @@ def main():
     jindou_success_count = 0
     total_points_reward = 0
     total_jindou_reward = 0
+    retried_accounts = []
     
     for result in all_results:
         account_index = result['account_index']
         nickname = result.get('nickname', '未知')
+        retry_count = result.get('retry_count', 0)
         
-        log(f"账号 {account_index} ({nickname}) 详细结果:")
+        if retry_count > 0:
+            retried_accounts.append(account_index)
+        
+        log(f"账号 {account_index} ({nickname}) 详细结果:" + (f" [重试{retry_count}次]" if retry_count > 0 else ""))
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
         
         # 显示积分变化
@@ -822,6 +848,9 @@ def main():
     
     if total_jindou_reward > 0:
         log(f"  ├── 总计获得金豆: +{total_jindou_reward}")
+    
+    if retried_accounts:
+        log(f"  ├── 重试账号: {', '.join(map(str, retried_accounts))}")
     
     # 计算成功率
     oshwhub_rate = (oshwhub_success_count / total_accounts) * 100
