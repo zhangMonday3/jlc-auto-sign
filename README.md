@@ -59,7 +59,7 @@
 
 在secret里再添加一个值
    - **Name**: `ERROR`  
-     **Value**: `1`
+     **Value**: `true`
 
 ---
 
