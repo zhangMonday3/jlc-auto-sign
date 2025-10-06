@@ -890,7 +890,7 @@ def main():
     # 根据失败退出标志决定退出码
     if enable_failure_exit and failed_accounts:
         log(f"❌ 检测到失败的账号: {', '.join(map(str, failed_accounts))}")
-        log("❌ 由于失败退出功能已开启，程序返回非零退出码")
+        log("❌ 由于失败退出功能已开启，返回报错退出码以获得邮件提醒")
         sys.exit(1)
     else:
         if enable_failure_exit:
