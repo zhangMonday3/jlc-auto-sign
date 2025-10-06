@@ -642,7 +642,7 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
             try:
                 signed_element = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
                 log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
-                result['oshwhub_status'] = '已签到'
+                result['oshwhub_status'] = '已签到过'
                 result['oshwhub_success'] = True
                 
                 # 即使已签到，也尝试点击礼包按钮
