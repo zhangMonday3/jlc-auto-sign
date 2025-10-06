@@ -677,7 +677,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         if result['points_reward'] > 0:
             log(f"账号 {account_index} - 🎉 总积分增加: {result['initial_points']} → {result['final_points']} (+{result['points_reward']})")
         elif result['points_reward'] == 0:
-            log(f"账号 {account_index} - ⚠ 总积分无变化: {result['initial_points']} → {result['final_points']} (0)")
+            log(f"账号 {account_index} - ⚠ 总积分无变化，可能今天已签到过: {result['initial_points']} → {result['final_points']} (0)")
         else:
             log(f"账号 {account_index} - ❗ 积分减少: {result['initial_points']} → {result['final_points']} ({result['points_reward']})")
 
