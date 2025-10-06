@@ -849,9 +849,6 @@ def main():
     if total_jindou_reward > 0:
         log(f"  ├── 总计获得金豆: +{total_jindou_reward}")
     
-    if retried_accounts:
-        log(f"  ├── 重试账号: {', '.join(map(str, retried_accounts))}")
-    
     # 计算成功率
     oshwhub_rate = (oshwhub_success_count / total_accounts) * 100
     jindou_rate = (jindou_success_count / total_accounts) * 100
