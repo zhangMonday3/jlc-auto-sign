@@ -427,7 +427,7 @@ def get_user_nickname_from_api(driver, account_index):
 
 def sign_in_account(username, password, account_index, total_accounts, retry_count=0):
     """为单个账号执行完整的签到流程（包含重试机制）"""
-    log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (第{retry_count+1}次重试)" if retry_count > 0 else ""))
+    log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (重试)" if retry_count > 0 else ""))
     
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
@@ -754,8 +754,8 @@ def process_single_account(username, password, account_index, total_accounts):
         if not should_retry(result) or attempt >= max_retries:
             break
         else:
-            log(f"账号 {account_index} - 🔄 准备第 {attempt + 1} 次重试，等待 {random.randint(5, 10)} 秒后重新开始...")
-            time.sleep(random.randint(5, 10))
+            log(f"账号 {account_index} - 🔄 准备第 {attempt + 1} 次重试，等待 {random.randint(2, 6)} 秒后重新开始...")
+            time.sleep(random.randint(2, 6))
     
     return result
 
