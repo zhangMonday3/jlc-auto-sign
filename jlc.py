@@ -275,7 +275,7 @@ class JLCClient:
         if self.jindou_reward > 0:
             log(f"账号 {self.account_index} - 🎉 总金豆增加: {self.initial_jindou} → {self.final_jindou} (+{self.jindou_reward})")
         elif self.jindou_reward == 0:
-            log(f"账号 {self.account_index} - ⚠ 总金豆无变化，可能是当天已经签到过: {self.initial_jindou} → {self.final_jindou} (0)")
+            log(f"账号 {self.account_index} - ⚠ 总金豆无变化，可能今天已签到过: {self.initial_jindou} → {self.final_jindou} (0)")
         else:
             log(f"账号 {self.account_index} - ❗ 金豆减少: {self.initial_jindou} → {self.final_jindou} ({self.jindou_reward})")
         
