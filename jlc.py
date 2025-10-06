@@ -108,6 +108,34 @@ def extract_secretkey_from_devtools(driver):
     
     return secretkey
 
+def get_oshwhub_points(driver, account_index):
+    """获取开源平台积分数量"""
+    try:
+        # 获取当前页面的Cookie
+        cookies = driver.get_cookies()
+        cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        
+        headers = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'accept': 'application/json, text/plain, */*',
+            'cookie': cookie_str
+        }
+        
+        # 调用用户信息API获取积分
+        response = requests.get("https://oshwhub.com/api/users", headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and data.get('success'):
+                points = data.get('result', {}).get('points', 0)
+                log(f"账号 {account_index} - 📊 当前积分: {points}")
+                return points
+        
+        log(f"账号 {account_index} - ⚠ 无法获取积分信息")
+        return 0
+    except Exception as e:
+        log(f"账号 {account_index} - ⚠ 获取积分失败: {e}")
+        return 0
+
 class JLCClient:
     """嘉立创 API 客户端"""
     
@@ -417,6 +445,9 @@ def sign_in_account(username, password, account_index, total_accounts):
         'nickname': '未知',
         'oshwhub_status': '未知',
         'oshwhub_success': False,
+        'initial_points': 0,      # 签到前积分
+        'final_points': 0,        # 签到后积分
+        'points_reward': 0,       # 本次获得积分
         'jindou_status': '未知',
         'jindou_success': False,
         'initial_jindou': 0,
@@ -580,7 +611,12 @@ def sign_in_account(username, password, account_index, total_accounts):
         if nickname:
             result['nickname'] = nickname
 
-        # 4. 开源平台签到
+        # 4. 获取签到前积分数量
+        log(f"账号 {account_index} - 获取签到前积分数量...")
+        result['initial_points'] = get_oshwhub_points(driver, account_index)
+        log(f"账号 {account_index} - 签到前积分: {result['initial_points']}")
+
+        # 5. 开源平台签到
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
@@ -617,7 +653,7 @@ def sign_in_account(username, password, account_index, total_accounts):
                     # 等待签到完成
                     time.sleep(2)
                     
-                    # 5. 签到完成后点击7天好礼和月度好礼
+                    # 6. 签到完成后点击7天好礼和月度好礼
                     log(f"账号 {account_index} - 开始点击礼包按钮...")
                     click_gift_buttons(driver, account_index)
                     
@@ -631,7 +667,21 @@ def sign_in_account(username, password, account_index, total_accounts):
 
         time.sleep(3)
 
-        # 6. 金豆签到流程
+        # 7. 获取签到后积分数量
+        log(f"账号 {account_index} - 获取签到后积分数量...")
+        result['final_points'] = get_oshwhub_points(driver, account_index)
+        log(f"账号 {account_index} - 签到后积分: {result['final_points']}")
+
+        # 8. 计算积分差值
+        result['points_reward'] = result['final_points'] - result['initial_points']
+        if result['points_reward'] > 0:
+            log(f"账号 {account_index} - 🎉 总积分增加: {result['initial_points']} → {result['final_points']} (+{result['points_reward']})")
+        elif result['points_reward'] == 0:
+            log(f"账号 {account_index} - ⚠ 总积分无变化: {result['initial_points']} → {result['final_points']} (0)")
+        else:
+            log(f"账号 {account_index} - ❗ 积分减少: {result['initial_points']} → {result['final_points']} ({result['points_reward']})")
+
+        # 9. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
@@ -711,6 +761,7 @@ def main():
     
     oshwhub_success_count = 0
     jindou_success_count = 0
+    total_points_reward = 0
     total_jindou_reward = 0
     
     for result in all_results:
@@ -719,8 +770,19 @@ def main():
         
         log(f"账号 {account_index} ({nickname}) 详细结果:")
         log(f"  ├── 开源平台: {result['oshwhub_status']}")
+        
+        # 显示积分变化
+        if result['points_reward'] > 0:
+            log(f"  ├── 积分变化: {result['initial_points']} → {result['final_points']} (+{result['points_reward']})")
+            total_points_reward += result['points_reward']
+        elif result['points_reward'] == 0 and result['initial_points'] > 0:
+            log(f"  ├── 积分变化: {result['initial_points']} → {result['final_points']} (0)")
+        else:
+            log(f"  ├── 积分状态: 无法获取积分信息")
+        
         log(f"  ├── 金豆签到: {result['jindou_status']}")
         
+        # 显示金豆变化
         if result['jindou_reward'] > 0:
             log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (+{result['jindou_reward']})")
             total_jindou_reward += result['jindou_reward']
@@ -728,9 +790,6 @@ def main():
             log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (0)")
         else:
             log(f"  ├── 金豆状态: 无法获取金豆信息")
-        
-        log(f"  ├── Token提取: {'成功' if result['token_extracted'] else '失败'}")
-        log(f"  └── SecretKey提取: {'成功' if result['secretkey_extracted'] else '失败'}")
         
         if result['oshwhub_success']:
             oshwhub_success_count += 1
@@ -744,6 +803,9 @@ def main():
     log(f"  ├── 总账号数: {total_accounts}")
     log(f"  ├── 开源平台签到成功: {oshwhub_success_count}/{total_accounts}")
     log(f"  ├── 金豆签到成功: {jindou_success_count}/{total_accounts}")
+    
+    if total_points_reward > 0:
+        log(f"  ├── 总计获得积分: +{total_points_reward}")
     
     if total_jindou_reward > 0:
         log(f"  ├── 总计获得金豆: +{total_jindou_reward}")
