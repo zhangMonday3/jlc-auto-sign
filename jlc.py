@@ -762,24 +762,18 @@ def process_single_account(username, password, account_index, total_accounts):
 def main():
     if len(sys.argv) < 3:
         print("用法: python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3... [失败退出标志]")
-        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3 1")
-        print("失败退出标志: 0-关闭(默认), 1-开启(任意账号签到失败时返回非零退出码)")
+        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3")
+        print("示例: python jlc.py user1,user2,user3 pwd1,pwd2,pwd3 true")
+        print("失败退出标志: 不传或任意值-关闭, true-开启(任意账号签到失败时返回非零退出码)")
         sys.exit(1)
     
     usernames = [u.strip() for u in sys.argv[1].split(',') if u.strip()]
     passwords = [p.strip() for p in sys.argv[2].split(',') if p.strip()]
     
-    # 解析失败退出标志，默认为0（关闭）
-    enable_failure_exit = 0
+    # 解析失败退出标志，默认为关闭
+    enable_failure_exit = False
     if len(sys.argv) >= 4:
-        try:
-            enable_failure_exit = int(sys.argv[3])
-            if enable_failure_exit not in [0, 1]:
-                log("⚠ 失败退出标志只能是0或1，使用默认值0")
-                enable_failure_exit = 0
-        except ValueError:
-            log("⚠ 无法解析失败退出标志，使用默认值0")
-            enable_failure_exit = 0
+        enable_failure_exit = (sys.argv[3].lower() == 'true')
     
     log(f"失败退出功能: {'开启' if enable_failure_exit else '关闭'}")
     
@@ -896,7 +890,7 @@ def main():
     # 根据失败退出标志决定退出码
     if enable_failure_exit and failed_accounts:
         log(f"❌ 检测到失败的账号: {', '.join(map(str, failed_accounts))}")
-        log("❌ 由于失败退出功能已开启，返回非零报错退出码")
+        log("❌ 由于失败退出功能已开启，程序返回非零退出码")
         sys.exit(1)
     else:
         if enable_failure_exit:
