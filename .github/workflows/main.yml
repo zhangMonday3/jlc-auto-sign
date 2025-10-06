@@ -36,4 +36,4 @@ jobs:
 
       - name: 'Working'
         run: |
-          python ./jlc.py ${{ secrets.JLC_USERNAME }} ${{ secrets.JLC_PASSWORD }} ${{ secrets.ERROR }}
+          python ./jlc.py "${{ secrets.JLC_USERNAME }}" "${{ secrets.JLC_PASSWORD }}" "${{ secrets.ERROR }}"
