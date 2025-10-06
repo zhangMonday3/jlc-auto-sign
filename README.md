@@ -39,7 +39,7 @@
 
 ---
 
-### 2. 配置嘉立创账号和密码/报错提醒
+### 2. 配置嘉立创账号和密码/签到失败提醒
 1. 进入你 Fork 的仓库，点击 **Settings** → **Secrets** → **New repository secret**。  
 2. 添加以下两个密钥：  
    - **Name**: `JLC_USERNAME`  
