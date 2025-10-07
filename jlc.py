@@ -425,89 +425,9 @@ def get_user_nickname_from_api(driver, account_index):
         log(f"账号 {account_index} - ⚠ 获取用户昵称失败: {e}")
         return None
 
-def perform_oshwhub_signin_only(driver, account_index, wait):
-    """仅执行开源平台签到部分（用于重试时）"""
-    oshwhub_status = '未知'
-    oshwhub_success = False
-    initial_points = 0
-    final_points = 0
-    points_reward = 0
-
-    try:
-        # 4. 开源平台签到
-        log(f"账号 {account_index} - 等待签到页加载...")
-        time.sleep(5)
-
-        try:
-            driver.refresh()
-            time.sleep(4)
-        except:
-            pass
-
-        # 执行开源平台签到
-        try:
-            # 先检查是否已经签到
-            try:
-                signed_element = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
-                log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
-                oshwhub_status = '已签到过'
-                oshwhub_success = True
-                
-                # 即使已签到，也尝试点击礼包按钮
-                log(f"账号 {account_index} - 开始点击礼包按钮...")
-                click_gift_buttons(driver, account_index)
-                
-            except:
-                # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
-                try:
-                    sign_btn = wait.until(
-                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
-                    )
-                    sign_btn.click()
-                    log(f"账号 {account_index} - ✅ 开源平台签到成功！")
-                    oshwhub_status = '签到成功'
-                    oshwhub_success = True
-                    
-                    # 等待签到完成
-                    time.sleep(2)
-                    
-                    # 6. 签到完成后点击7天好礼和月度好礼
-                    log(f"账号 {account_index} - 开始点击礼包按钮...")
-                    click_gift_buttons(driver, account_index)
-                    
-                except Exception as e:
-                    log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
-                    oshwhub_status = '签到失败'
-                    
-        except Exception as e:
-            log(f"账号 {account_index} - ❌ 开源平台签到异常: {e}")
-            oshwhub_status = '签到异常'
-
-        time.sleep(3)
-
-        # 7. 获取签到后积分数量
-        log(f"账号 {account_index} - 获取签到后积分数量...")
-        final_points = get_oshwhub_points(driver, account_index)
-        log(f"账号 {account_index} - 签到后积分: {final_points}")
-
-        # 8. 计算积分差值
-        points_reward = final_points - initial_points
-        if points_reward > 0:
-            log(f"账号 {account_index} - 🎉 总积分增加: {initial_points} → {final_points} (+{points_reward})")
-        elif points_reward == 0:
-            log(f"账号 {account_index} - ⚠ 总积分无变化，可能今天已签到过: {initial_points} → {final_points} (0)")
-        else:
-            log(f"账号 {account_index} - ❗ 积分减少: {initial_points} → {final_points} ({points_reward})")
-
-    except Exception as e:
-        log(f"账号 {account_index} - ❌ 开源平台重试执行错误: {e}")
-        oshwhub_status = '执行异常'
-
-    return oshwhub_status, oshwhub_success, initial_points, final_points, points_reward
-
-def sign_in_account(username, password, account_index, total_accounts, retry_count=0, skip_jindou=False):
+def sign_in_account(username, password, account_index, total_accounts, retry_count=0):
     """为单个账号执行完整的签到流程（包含重试机制）"""
-    log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (重试)" if retry_count > 0 else "") + (f" (仅开源)" if skip_jindou else ""))
+    log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (重试)" if retry_count > 0 else ""))
     
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
@@ -706,52 +626,105 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
         result['initial_points'] = get_oshwhub_points(driver, account_index)
         log(f"账号 {account_index} - 签到前积分: {result['initial_points']}")
 
-        if skip_jindou:
-            # 重试时仅执行开源平台签到
-            result['oshwhub_status'], result['oshwhub_success'], _, result['final_points'], result['points_reward'] = perform_oshwhub_signin_only(driver, account_index, wait)
-            result['final_points'] = get_oshwhub_points(driver, account_index)  # 确保最终积分
-        else:
-            # 完整执行，包括金豆
-            oshwhub_status, oshwhub_success, _, final_points, points_reward = perform_oshwhub_signin_only(driver, account_index, wait)
-            result['oshwhub_status'] = oshwhub_status
-            result['oshwhub_success'] = oshwhub_success
-            result['final_points'] = final_points
-            result['points_reward'] = points_reward
+        # 5. 开源平台签到
+        log(f"账号 {account_index} - 等待签到页加载...")
+        time.sleep(5)
 
-            # 9. 金豆签到流程
-            log(f"账号 {account_index} - 开始金豆签到流程...")
-            driver.get("https://m.jlc.com/")
-            log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
-            time.sleep(10)
-            
-            navigate_and_interact_m_jlc(driver, account_index)
-            
-            access_token = extract_token_from_local_storage(driver)
-            secretkey = extract_secretkey_from_devtools(driver)
-            
-            result['token_extracted'] = bool(access_token)
-            result['secretkey_extracted'] = bool(secretkey)
-            
-            if access_token and secretkey:
-                log(f"账号 {account_index} - ✅ 成功提取 token 和 secretkey")
+        try:
+            driver.refresh()
+            time.sleep(4)
+        except:
+            pass
+
+        # 执行开源平台签到
+        try:
+            # 先检查是否已经签到
+            try:
+                signed_element = driver.find_element(By.XPATH, '//span[contains(text(),"已签到")]')
+                log(f"账号 {account_index} - ✅ 今天已经在开源平台签到过了！")
+                result['oshwhub_status'] = '已签到过'
+                result['oshwhub_success'] = True
                 
-                jlc_client = JLCClient(access_token, secretkey, account_index)
-                jindou_success = jlc_client.execute_full_process()
+                # 即使已签到，也尝试点击礼包按钮
+                log(f"账号 {account_index} - 开始点击礼包按钮...")
+                click_gift_buttons(driver, account_index)
                 
-                # 记录金豆签到结果
-                result['jindou_success'] = jindou_success
-                result['jindou_status'] = jlc_client.sign_status
-                result['initial_jindou'] = jlc_client.initial_jindou
-                result['final_jindou'] = jlc_client.final_jindou
-                result['jindou_reward'] = jlc_client.jindou_reward
-                
-                if jindou_success:
-                    log(f"账号 {account_index} - ✅ 金豆签到流程完成")
-                else:
-                    log(f"账号 {account_index} - ❌ 金豆签到流程失败")
+            except:
+                # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
+                try:
+                    sign_btn = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, '//span[contains(text(),"立即签到")]'))
+                    )
+                    sign_btn.click()
+                    log(f"账号 {account_index} - ✅ 开源平台签到成功！")
+                    result['oshwhub_status'] = '签到成功'
+                    result['oshwhub_success'] = True
+                    
+                    # 等待签到完成
+                    time.sleep(2)
+                    
+                    # 6. 签到完成后点击7天好礼和月度好礼
+                    log(f"账号 {account_index} - 开始点击礼包按钮...")
+                    click_gift_buttons(driver, account_index)
+                    
+                except Exception as e:
+                    log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
+                    result['oshwhub_status'] = '签到失败'
+                    
+        except Exception as e:
+            log(f"账号 {account_index} - ❌ 开源平台签到异常: {e}")
+            result['oshwhub_status'] = '签到异常'
+
+        time.sleep(3)
+
+        # 7. 获取签到后积分数量
+        log(f"账号 {account_index} - 获取签到后积分数量...")
+        result['final_points'] = get_oshwhub_points(driver, account_index)
+        log(f"账号 {account_index} - 签到后积分: {result['final_points']}")
+
+        # 8. 计算积分差值
+        result['points_reward'] = result['final_points'] - result['initial_points']
+        if result['points_reward'] > 0:
+            log(f"账号 {account_index} - 🎉 总积分增加: {result['initial_points']} → {result['final_points']} (+{result['points_reward']})")
+        elif result['points_reward'] == 0:
+            log(f"账号 {account_index} - ⚠ 总积分无变化，可能今天已签到过: {result['initial_points']} → {result['final_points']} (0)")
+        else:
+            log(f"账号 {account_index} - ❗ 积分减少: {result['initial_points']} → {result['final_points']} ({result['points_reward']})")
+
+        # 9. 金豆签到流程
+        log(f"账号 {account_index} - 开始金豆签到流程...")
+        driver.get("https://m.jlc.com/")
+        log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
+        time.sleep(10)
+        
+        navigate_and_interact_m_jlc(driver, account_index)
+        
+        access_token = extract_token_from_local_storage(driver)
+        secretkey = extract_secretkey_from_devtools(driver)
+        
+        result['token_extracted'] = bool(access_token)
+        result['secretkey_extracted'] = bool(secretkey)
+        
+        if access_token and secretkey:
+            log(f"账号 {account_index} - ✅ 成功提取 token 和 secretkey")
+            
+            jlc_client = JLCClient(access_token, secretkey, account_index)
+            jindou_success = jlc_client.execute_full_process()
+            
+            # 记录金豆签到结果
+            result['jindou_success'] = jindou_success
+            result['jindou_status'] = jlc_client.sign_status
+            result['initial_jindou'] = jlc_client.initial_jindou
+            result['final_jindou'] = jlc_client.final_jindou
+            result['jindou_reward'] = jlc_client.jindou_reward
+            
+            if jindou_success:
+                log(f"账号 {account_index} - ✅ 金豆签到流程完成")
             else:
-                log(f"账号 {account_index} - ❌ 无法提取到 token 或 secretkey，跳过金豆签到")
-                result['jindou_status'] = 'Token提取失败'
+                log(f"账号 {account_index} - ❌ 金豆签到流程失败")
+        else:
+            log(f"账号 {account_index} - ❌ 无法提取到 token 或 secretkey，跳过金豆签到")
+            result['jindou_status'] = 'Token提取失败'
 
     except Exception as e:
         log(f"账号 {account_index} - ❌ 程序执行错误: {e}")
@@ -763,51 +736,28 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
     return result
 
 def should_retry(result):
-    """判断是否需要重试：仅开源平台签到失败时重试"""
-    need_retry = not result['oshwhub_success']
+    """判断是否需要重试：开源平台签到失败或金豆签到失败"""
+    need_retry = (not result['oshwhub_success']) or (not result['jindou_success'])
     if need_retry:
-        log(f"账号 {result['account_index']} - ⚠ 开源平台签到失败，需要重试")
+        log(f"账号 {result['account_index']} - ⚠ 检测到失败情况，需要重试")
     return need_retry
 
 def process_single_account(username, password, account_index, total_accounts):
     """处理单个账号，包含重试机制"""
     max_retries = 1  # 最多重试1次
-    final_result = None
-    first_attempt_result = None
+    result = None
     
-    # 第一次执行完整流程
-    first_attempt_result = sign_in_account(username, password, account_index, total_accounts, retry_count=0)
-    final_result = first_attempt_result.copy()  # 复制作为基础结果
-    
-    # 检查是否需要重试（仅开源失败）
-    if should_retry(first_attempt_result):
-        for attempt in range(1, max_retries + 1):
-            log(f"账号 {account_index} - 🔄 准备第 {attempt} 次重试（仅开源平台），等待 {random.randint(2, 6)} 秒后重新开始...")
+    for attempt in range(max_retries + 1):  # 第一次执行 + 重试次数
+        result = sign_in_account(username, password, account_index, total_accounts, retry_count=attempt)
+        
+        # 检查是否需要重试
+        if not should_retry(result) or attempt >= max_retries:
+            break
+        else:
+            log(f"账号 {account_index} - 🔄 准备第 {attempt + 1} 次重试，等待 {random.randint(2, 6)} 秒后重新开始...")
             time.sleep(random.randint(2, 6))
-            
-            retry_result = sign_in_account(username, password, account_index, total_accounts, retry_count=attempt, skip_jindou=True)
-            
-            # 如果重试开源成功，则更新开源相关字段；否则保留第一次
-            if retry_result['oshwhub_success']:
-                final_result['oshwhub_success'] = True
-                final_result['oshwhub_status'] = retry_result['oshwhub_status']
-                final_result['final_points'] = retry_result['final_points']
-                final_result['points_reward'] = retry_result['points_reward']
-                final_result['retry_count'] = attempt
-                log(f"账号 {account_index} - ✅ 重试开源平台签到成功，使用重试结果")
-            else:
-                log(f"账号 {account_index} - ⚠ 重试开源平台签到仍失败，保留第一次结果")
-            
-            # 金豆始终保留第一次的结果（因为重试时跳过金豆）
-            final_result['jindou_success'] = first_attempt_result['jindou_success']
-            final_result['jindou_status'] = first_attempt_result['jindou_status']
-            final_result['initial_jindou'] = first_attempt_result['initial_jindou']
-            final_result['final_jindou'] = first_attempt_result['final_jindou']
-            final_result['jindou_reward'] = first_attempt_result['jindou_reward']
-            final_result['token_extracted'] = first_attempt_result['token_extracted']
-            final_result['secretkey_extracted'] = first_attempt_result['secretkey_extracted']
     
-    return final_result
+    return result
 
 def main():
     if len(sys.argv) < 3:
