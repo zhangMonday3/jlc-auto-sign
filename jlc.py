@@ -947,7 +947,7 @@ def main():
         if enable_failure_exit:
             log("✅ 所有账号签到成功，程序正常退出")
         else:
-            log("✅ 程序正常退出（有账号签到失败但失败退出未开启）")
+            log("✅ 程序正常退出（失败退出未开启）")
         sys.exit(0)
 
 if __name__ == "__main__":
