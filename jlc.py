@@ -735,29 +735,80 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
     
     return result
 
-def should_retry(result):
-    """判断是否需要重试：开源平台签到失败或金豆签到失败"""
-    need_retry = (not result['oshwhub_success']) or (not result['jindou_success'])
-    if need_retry:
-        log(f"账号 {result['account_index']} - ⚠ 检测到失败情况，需要重试")
+def should_retry(merged_success):
+    """判断是否需要重试：如果开源平台或金豆签到未成功"""
+    need_retry = not merged_success['oshwhub'] or not merged_success['jindou']
     return need_retry
 
 def process_single_account(username, password, account_index, total_accounts):
-    """处理单个账号，包含重试机制"""
+    """处理单个账号，包含重试机制，并合并多次尝试的最佳结果"""
     max_retries = 1  # 最多重试1次
-    result = None
+    merged_result = {
+        'account_index': account_index,
+        'nickname': '未知',
+        'oshwhub_status': '未知',
+        'oshwhub_success': False,
+        'initial_points': 0,
+        'final_points': 0,
+        'points_reward': 0,
+        'jindou_status': '未知',
+        'jindou_success': False,
+        'initial_jindou': 0,
+        'final_jindou': 0,
+        'jindou_reward': 0,
+        'token_extracted': False,
+        'secretkey_extracted': False,
+        'retry_count': 0  # 记录最后使用的retry_count
+    }
     
+    merged_success = {'oshwhub': False, 'jindou': False}
+
     for attempt in range(max_retries + 1):  # 第一次执行 + 重试次数
         result = sign_in_account(username, password, account_index, total_accounts, retry_count=attempt)
         
-        # 检查是否需要重试
-        if not should_retry(result) or attempt >= max_retries:
+        # 合并开源平台结果：如果本次成功且之前未成功，则更新
+        if result['oshwhub_success'] and not merged_success['oshwhub']:
+            merged_success['oshwhub'] = True
+            merged_result['oshwhub_status'] = result['oshwhub_status']
+            merged_result['initial_points'] = result['initial_points']
+            merged_result['final_points'] = result['final_points']
+            merged_result['points_reward'] = result['points_reward']
+            log(f"账号 {account_index} - 🔄 合并开源平台成功结果 (尝试 {attempt})")
+        
+        # 合并金豆结果：如果本次成功且之前未成功，则更新
+        if result['jindou_success'] and not merged_success['jindou']:
+            merged_success['jindou'] = True
+            merged_result['jindou_status'] = result['jindou_status']
+            merged_result['initial_jindou'] = result['initial_jindou']
+            merged_result['final_jindou'] = result['final_jindou']
+            merged_result['jindou_reward'] = result['jindou_reward']
+            log(f"账号 {account_index} - 🔄 合并金豆签到成功结果 (尝试 {attempt})")
+        
+        # 更新其他字段（如果之前未知）
+        if merged_result['nickname'] == '未知' and result['nickname'] != '未知':
+            merged_result['nickname'] = result['nickname']
+        
+        if not merged_result['token_extracted'] and result['token_extracted']:
+            merged_result['token_extracted'] = result['token_extracted']
+        
+        if not merged_result['secretkey_extracted'] and result['secretkey_extracted']:
+            merged_result['secretkey_extracted'] = result['secretkey_extracted']
+        
+        # 更新retry_count为最后一次尝试的
+        merged_result['retry_count'] = result['retry_count']
+        
+        # 检查是否还需要重试
+        if not should_retry(merged_success) or attempt >= max_retries:
             break
         else:
             log(f"账号 {account_index} - 🔄 准备第 {attempt + 1} 次重试，等待 {random.randint(2, 6)} 秒后重新开始...")
             time.sleep(random.randint(2, 6))
     
-    return result
+    # 最终设置success字段基于合并
+    merged_result['oshwhub_success'] = merged_success['oshwhub']
+    merged_result['jindou_success'] = merged_success['jindou']
+    
+    return merged_result
 
 def main():
     if len(sys.argv) < 3:
