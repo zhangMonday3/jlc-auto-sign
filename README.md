@@ -145,9 +145,21 @@ python jlc.py 账号1,账号2,账号3... 密码1,密码2,密码3...
 ### 成功运行结果（节选）
 ![成功运行结果](img/6.png)
 
-## 致谢  
+---
+
+### 捐赠
+
+[打赏支持](https://donate.zhangmonday.top/)
+
+如果本项目对你有点帮助，请考虑给作者捐赠～哪怕0.01也行，我能知道有人在用
+
+你的捐赠是我继续维护和更新该脚本的最大动力！
+
+---
+
+### 致谢  
 本项目参考和复用了 [https://github.com/wmathor/Check_In](https://github.com/wmathor/Check_In) 的部分代码，感谢！
 
 本项目参考了 [https://github.com/sudojia/AutoTaskScript](https://github.com/sudojia/AutoTaskScript/) 的嘉立创脚本，感谢！
 
-欢迎提交issue和PR，如果本项目对你有帮助，请给我点个star~
+欢迎提交issue和PR🎉(´∀｀)🎈
