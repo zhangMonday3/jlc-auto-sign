@@ -245,9 +245,9 @@ class JLCClient:
                 
                 # 领取奖励
                 if self.receive_voucher():
-                    # 领取奖励成功后，直接视为签到完成，不再重新签到
-                    log(f"账号 {self.account_index} - ✅ 奖励领取成功，签到完成")
-                    self.sign_status = "领取奖励成功"
+                    # 领取成功后，视为签到完成，不再重新签到
+                    log(f"账号 {self.account_index} - ✅ 奖励领取成功，签到流程完成")
+                    self.sign_status = "签到成功"
                     return True
                 else:
                     self.sign_status = "领取奖励失败"
