@@ -376,7 +376,7 @@ def capture_reward_info(driver, account_index, gift_type):
             EC.presence_of_element_located((By.XPATH, '//p[contains(text(), "恭喜获取")]'))
         )
         reward_text = reward_elem.text.strip()
-        log(f"账号 {account_index} - {reward_text}")
+        log(f"账号 {account_index} - 好礼领取结果：{reward_text}")
     except Exception as e:
         log(f"账号 {account_index} - 已点击{gift_type}好礼，未获取到奖励信息，请自行前往开源平台查看。")
 
@@ -397,7 +397,7 @@ def click_gift_buttons(driver, account_index):
             try:
                 seven_day_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="7天好礼"]')
                 seven_day_gift.click()
-                log(f"账号 {account_index} - ✅ 检测到今天是周日，成功点击7天好礼")
+                log(f"账号 {account_index} - ✅ 检测到今天是周日，成功点击7天好礼，祝你周末愉快~")
                 
                 # 等待1秒并抓取奖励信息
                 time.sleep(1)
