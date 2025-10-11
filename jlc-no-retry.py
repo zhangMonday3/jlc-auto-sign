@@ -7,7 +7,7 @@ import json
 import tempfile
 import random
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver import ActionChains
@@ -245,9 +245,9 @@ class JLCClient:
                 
                 # 领取奖励
                 if self.receive_voucher():
-                    # 领取成功后，视为签到完成，不再重新签到
-                    log(f"账号 {self.account_index} - ✅ 奖励领取成功，签到流程完成")
-                    self.sign_status = "签到成功"
+                    # 领取奖励成功后，直接视为签到完成，不再重新签到
+                    log(f"账号 {self.account_index} - ✅ 奖励领取成功，签到完成")
+                    self.sign_status = "领取奖励成功"
                     return True
                 else:
                     self.sign_status = "领取奖励失败"
@@ -361,39 +361,72 @@ def navigate_and_interact_m_jlc(driver, account_index):
     except Exception as e:
         log(f"账号 {account_index} - 交互操作出错: {e}")
 
+def is_sunday():
+    """检查今天是否是周日"""
+    return datetime.now().weekday() == 6
+
+def is_last_day_of_month():
+    """检查今天是否是当月最后一天"""
+    today = datetime.now()
+    next_month = today.replace(day=28) + timedelta(days=4)
+    last_day = next_month - timedelta(days=next_month.day)
+    return today.day == last_day.day
+
+def capture_reward_info(driver, account_index, gift_type):
+    """抓取并输出奖励信息"""
+    try:
+        reward_elem = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, '//p[contains(text(), "恭喜获取")]'))
+        )
+        reward_text = reward_elem.text.strip()
+        log(f"账号 {account_index} - 好礼领取结果：{reward_text}")
+    except Exception as e:
+        log(f"账号 {account_index} - 已点击{gift_type}好礼，未获取到奖励信息(可能已领取过)，请自行前往开源平台查看。")
+
 def click_gift_buttons(driver, account_index):
-    """点击7天好礼和月度好礼按钮"""
+    """根据日期条件点击7天好礼和月度好礼按钮，并抓取奖励信息"""
+    if not is_sunday() and not is_last_day_of_month():
+        return  # 静默不执行
+
     try:
         # 等待一秒
         time.sleep(1)
         
-        # 尝试点击7天好礼
-        try:
-            seven_day_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="7天好礼"]')
-            seven_day_gift.click()
-            log(f"账号 {account_index} - ✅ 成功点击7天好礼")
-            
-            # 等待2秒
-            time.sleep(2)
-            
-            # 刷新页面
-            driver.refresh()
-            
-            # 等待5秒让页面加载完毕
-            time.sleep(5)
-            
-        except Exception as e:
-            log(f"账号 {account_index} - ⚠ 无法点击7天好礼: {e}")
-        
-        # 尝试点击月度好礼
-        try:
-            monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
-            monthly_gift.click()
-            log(f"账号 {account_index} - ✅ 成功点击月度好礼")          
-            time.sleep(1)
-            
-        except Exception as e:
-            log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
+        sunday = is_sunday()
+        last_day = is_last_day_of_month()
+
+        if sunday:
+            # 尝试点击7天好礼
+            try:
+                seven_day_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="7天好礼"]')
+                seven_day_gift.click()
+                log(f"账号 {account_index} - ✅ 检测到今天是周日，成功点击7天好礼，祝你周末愉快~")
+                
+                # 等待1秒并抓取奖励信息
+                time.sleep(1)
+                capture_reward_info(driver, account_index, "7天")
+                
+                # 如果也是月底，刷新页面
+                if last_day:
+                    driver.refresh()
+                    time.sleep(5)
+                
+            except Exception as e:
+                log(f"账号 {account_index} - ⚠ 无法点击7天好礼: {e}")
+
+        if last_day:
+            # 尝试点击月度好礼
+            try:
+                monthly_gift = driver.find_element(By.XPATH, '//div[contains(@class, "sign_text__r9zaN")]/span[text()="月度好礼"]')
+                monthly_gift.click()
+                log(f"账号 {account_index} - ✅ 检测到今天是月底，成功点击月度好礼")          
+                
+                # 等待1秒并抓取奖励信息
+                time.sleep(1)
+                capture_reward_info(driver, account_index, "月度")
+                
+            except Exception as e:
+                log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
             
     except Exception as e:
         log(f"账号 {account_index} - ❌ 点击礼包按钮时出错: {e}")
