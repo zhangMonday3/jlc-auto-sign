@@ -378,7 +378,7 @@ def capture_reward_info(driver, account_index, gift_type):
         reward_text = reward_elem.text.strip()
         log(f"账号 {account_index} - 好礼领取结果：{reward_text}")
     except Exception as e:
-        log(f"账号 {account_index} - 已点击{gift_type}好礼，未获取到奖励信息，请自行前往开源平台查看。")
+        log(f"账号 {account_index} - 已点击{gift_type}好礼，未获取到奖励信息(可能已领取过)，请自行前往开源平台查看。")
 
 def click_gift_buttons(driver, account_index):
     """根据日期条件点击7天好礼和月度好礼按钮，并抓取奖励信息"""
