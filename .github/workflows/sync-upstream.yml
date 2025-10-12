@@ -1,4 +1,4 @@
-name: 自动更新并保持签到脚本活跃
+name: 自动更新并保持签到活跃
 #这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
 on:
   schedule:
@@ -49,12 +49,14 @@ jobs:
         if: steps.check-update.outputs.has_update == 'true'
         run: |
           git pull upstream main --ff-only
+          git pull origin main --rebase  # 先拉取远程更改避免冲突
           git push origin main
           echo "已拉取并推送上游更新"
 
       - name: 提交空修改（如果无更新）
         if: steps.check-update.outputs.has_update == 'false'
         run: |
+          git pull origin main --rebase  # 先同步远程更改
           echo " " >> README.md  # 添加一个空行作为空修改
           git add README.md
           git commit -m "保持仓库活跃：空提交"
