@@ -1,0 +1,48 @@
+name: Keep GitHub Actions Alive
+    # 这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
+on:
+  schedule:
+    # 每 10 天运行一次（UTC 0 点，对应北京时间早上 8 点）
+    - cron: "0 0 */10 * *"
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get default branch
+        id: branch
+        run: |
+          default_branch=$(gh api repos/${{ github.repository }} --jq .default_branch)
+          echo "branch=$default_branch" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check last commit message
+        id: last
+        run: |
+          last_commit=$(git log -1 --pretty=%B)
+          echo "last_commit=$last_commit" >> $GITHUB_OUTPUT
+
+      - name: Create empty commit if needed
+        if: ${{ !contains(steps.last.outputs.last_commit, 'keep-alive') }}
+        run: |
+          git commit --allow-empty -m "chore(keep-alive): keep workflow alive $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: Push changes
+        if: ${{ !contains(steps.last.outputs.last_commit, 'keep-alive') }}
+        run: |
+          git push origin HEAD:${{ steps.branch.outputs.branch }}
+
+      - name: Log status
+        run: echo "✅ 保持仓库活跃脚本成功检查于 $(date)."
