@@ -1,39 +1,39 @@
-name: auto-check-in
+name: 嘉立创自动签到主脚本
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发
   schedule:
-    - cron: '0 23 * * *'
-    - cron: '0 11 * * *'
-    #在这里设置UTC运行时间，如果不知道怎么配置可以问AI
-    #实际运行时间会比设置时间延迟一小时以内，取决于当时github资源占用情况。
+    - cron: '0 23 * * *'  # 每天北京时间7点运行
+    - cron: '0 11 * * *'  # 每天北京时间19点运行
+    # 在这里设置UTC运行时间，如果不知道怎么配置可以问AI
+    # 实际运行时间会比设置时间延迟一小时以内，取决于当时GitHub资源占用情况。
 
 jobs:
-  running:
-    runs-on: ubuntu-22.04
+  运行任务:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: '检出代码'
         uses: actions/checkout@v3
 
-      - name: 'Set up Python'
+      - name: '设置Python环境'
         uses: actions/setup-python@v5
         with:
           python-version: 3.7
 
-      - name: 'Set Timezone to UTC+8'
+      - name: '设置时区为北京时间'
         run: |
           sudo timedatectl set-timezone Asia/Shanghai
-          echo "Current time: $(date)"
+          echo "当前时间: $(date)"
 
-      - name: 'Install requirements'
+      - name: '安装依赖'
         run: |
           pip install --upgrade pip
           pip install -r ./requirements.txt
 
-      - name: Prepare chromedriver
+      - name: '准备Chrome驱动'
         uses: nanasess/setup-chromedriver@v2
 
-      - name: 'Working'
+      - name: '开始丝滑签到流程'
         run: |
           python ./jlc.py "${{ secrets.JLC_USERNAME }}" "${{ secrets.JLC_PASSWORD }}" "${{ secrets.ERROR }}"
