@@ -1,6 +1,6 @@
 name: 自动更新并保持签到脚本活跃
 
-#这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
+# 这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
 
 on:
   schedule:
@@ -25,19 +25,19 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: 添加上游远程仓库
+      - name: 添加上游仓库
         run: |
           if ! git remote | grep -q upstream; then
             git remote add upstream https://github.com/zhangMonday/jlc-auto-check-in.git
           fi
 
-      - name: 获取上游代码
+      - name: 获取更新代码
         run: git fetch upstream
 
       - name: 切换到 main 分支
         run: git checkout main
 
-      - name: 检查是否有上游更新
+      - name: 检查是否有更新
         id: check-update
         run: |
           UPSTREAM_HEAD=$(git rev-parse upstream/main)
@@ -48,29 +48,53 @@ jobs:
             echo "has_update=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 拉取上游代码并同步（如果有更新）
+      - name: 检查上游更新是否包含 workflow 文件
         if: steps.check-update.outputs.has_update == 'true'
+        id: check-workflow-update
+        run: |
+          git fetch upstream
+          CHANGES=$(git diff --name-only main upstream/main)
+          if echo "$CHANGES" | grep -q '\.github/workflows/'; then
+            echo "has_workflow_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_workflow_update=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 拉取上游代码并同步（如果有更新）
+        if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'false'
         run: |
           set -e
           git fetch upstream
           if git rebase upstream/main; then
             git push origin main --force-with-lease
-            echo "✅ 已成功拉取并更新"
+            echo "✅ 已成功更新最新代码"
           else
             git rebase --abort
-            echo "⚠️ rebase 失败，执行空提交保持活跃"
+            echo "⚠️ 更新异常，执行空提交保持活跃"
             echo " " >> README.md
             git add README.md
-            git commit -m "保持仓库活跃（rebase失败回退）"
+            git commit -m "保持仓库活跃（更新失败回退）"
             git push origin main
           fi
 
-      - name: 提交空修改（如果无上游更新）
+      - name: 提示手动更新（如果上游更新包含 workflow 文件）
+        if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'true'
+        run: |
+          echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"
+          # 同时执行空提交保持活跃
+          git pull origin main --rebase
+          echo "" >> README.md  # 添加空行保持活跃
+          git add README.md
+          git commit -m "空修改，上游有更新，请手动更新一下"
+          git push origin main
+          echo "🟢 已提交空修改保持仓库活跃"
+
+      - name: 提交空修改（如果无更新）
         if: steps.check-update.outputs.has_update == 'false'
         run: |
           git pull origin main --rebase
           echo "" >> README.md  # 添加空行保持活跃
           git add README.md
-          git commit -m "保持仓库活跃：空提交"
+          git commit -m "保持仓库活跃：空修改"
           git push origin main
           echo "🟢 无更新，已提交空修改保持仓库活跃"
