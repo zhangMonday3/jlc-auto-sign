@@ -71,9 +71,7 @@ jobs:
           else
             git rebase --abort
             echo "⚠️ 更新异常，执行空提交保持活跃"
-            echo " " >> README.md
-            git add README.md
-            git commit -m "保持仓库活跃（更新失败回退）"
+            git commit --allow-empty -m "保持仓库活跃（更新失败回退）"
             git push origin main
           fi
 
@@ -83,9 +81,7 @@ jobs:
           echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"
           # 同时执行空提交保持活跃
           git pull origin main --rebase
-          echo "" >> README.md  # 添加空行保持活跃
-          git add README.md
-          git commit -m "空修改，上游有更新，请手动更新一下"
+          git commit --allow-empty -m "空修改，检测到有更新，请手动更新一下"
           git push origin main
           echo "🟢 已提交空修改保持仓库活跃"
 
@@ -93,8 +89,6 @@ jobs:
         if: steps.check-update.outputs.has_update == 'false'
         run: |
           git pull origin main --rebase
-          echo "" >> README.md  # 添加空行保持活跃
-          git add README.md
-          git commit -m "保持仓库活跃：空修改"
+          git commit --allow-empty -m "保持仓库活跃：空修改"
           git push origin main
           echo "🟢 无更新，已提交空修改保持仓库活跃"
