@@ -40,9 +40,8 @@ jobs:
       - name: 检查是否有更新
         id: check-update
         run: |
-          UPSTREAM_HEAD=$(git rev-parse upstream/main)
-          LOCAL_HEAD=$(git rev-parse main)
-          if [ "$UPSTREAM_HEAD" != "$LOCAL_HEAD" ]; then
+          UPSTREAM_UPDATES=$(git rev-list --count main..upstream/main)
+          if [ "$UPSTREAM_UPDATES" -gt 0 ]; then
             echo "has_update=true" >> $GITHUB_OUTPUT
           else
             echo "has_update=false" >> $GITHUB_OUTPUT
