@@ -1,0 +1,62 @@
+name: 自动更新并保持签到活跃
+#这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
+on:
+  schedule:
+    - cron: '0 16 * * *'  # 每天0点触发
+  workflow_dispatch:  
+
+permissions:
+  contents: write  # 允许写入内容的权限
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史以便比较
+
+      - name: 设置 Git 配置
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: 添加上游远程仓库
+        run: |
+          if ! git remote | grep -q upstream; then
+            git remote add upstream https://github.com/zhangMonday/jlc-auto-check-in.git
+          fi
+
+      - name: 获取上游代码
+        run: git fetch upstream
+
+      - name: 切换到 main 分支
+        run: git checkout main
+
+      - name: 检查是否有上游更新
+        id: check-update
+        run: |
+          UPSTREAM_HEAD=$(git rev-parse upstream/main)
+          LOCAL_HEAD=$(git rev-parse main)
+          if [ "$UPSTREAM_HEAD" != "$LOCAL_HEAD" ]; then
+            echo "has_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_update=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 拉取上游代码（如果有更新）
+        if: steps.check-update.outputs.has_update == 'true'
+        run: |
+          git pull upstream main --ff-only
+          git push origin main
+          echo "已拉取并推送上游更新"
+
+      - name: 提交空修改（如果无更新）
+        if: steps.check-update.outputs.has_update == 'false'
+        run: |
+          echo " " >> README.md  # 添加一个空行作为空修改
+          git add README.md
+          git commit -m "保持仓库活跃：空提交"
+          git push origin main
+          echo "无上游更新，已提交空修改以保持活跃"
