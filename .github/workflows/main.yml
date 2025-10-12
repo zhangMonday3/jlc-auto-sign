@@ -34,6 +34,6 @@ jobs:
       - name: '准备Chrome驱动'
         uses: nanasess/setup-chromedriver@v2
 
-      - name: '开始丝滑签到流程'
+      - name: '进行签到流程(日志在这里看)'
         run: |
           python ./jlc.py "${{ secrets.JLC_USERNAME }}" "${{ secrets.JLC_PASSWORD }}" "${{ secrets.ERROR }}"
