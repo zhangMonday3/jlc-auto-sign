@@ -140,7 +140,7 @@ def get_oshwhub_points(driver, account_index):
         return 0
 
 class JLCClient:
-    """嘉立创 API 客户端"""
+    """嘉立创接口"""
     
     def __init__(self, access_token, secretkey, account_index):
         self.base_url = "https://m.jlc.com"
