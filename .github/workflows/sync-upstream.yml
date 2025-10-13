@@ -82,7 +82,7 @@ jobs:
               git cherry-pick "$commit" || {  
                 git cherry-pick --abort  
                 echo "⚠️ Cherry-pick 异常，执行空提交保持活跃"  
-                git commit --allow-empty -m "保持仓库活跃（更新失败回退）"  
+                git commit --allow-empty -m "空修改，用于保持仓库活跃（更新失败回退）"  
                 git push origin main  
                 exit 1  
               }  
@@ -91,7 +91,7 @@ jobs:
             echo "✅ 已成功 cherry-pick 非空更新"  
           else  
             echo "⚠️ 上游只有空提交，忽略并保持活跃"  
-            git commit --allow-empty -m "保持仓库活跃（忽略上游空更新）"  
+            git commit --allow-empty -m "空修改，用于保持仓库活跃，防止自动签到失效"  
             git push origin main  
           fi  
 
@@ -100,7 +100,7 @@ jobs:
         run: |  
           echo "Running: 提示手动更新"  
           echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"  
-          git commit --allow-empty -m "空修改，检测到有更新，请手动更新一下"  
+          git commit --allow-empty -m "空修改，用于保持仓库活跃，检测到有更新，请手动更新一下"  
           git push origin main  
           echo "🟢 已提交空修改保持仓库活跃"  
 
