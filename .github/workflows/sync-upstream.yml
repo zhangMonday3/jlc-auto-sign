@@ -47,19 +47,19 @@ jobs:
             if [ "$UPDATE_COUNT" -gt 0 ]; then
               if git diff --quiet main..upstream/main 2>/dev/null; then
                 echo "has_update=false" >> $GITHUB_OUTPUT
-                echo "changes=" >> $GITHUB_OUTPUT
+                echo "changes=none" >> $GITHUB_OUTPUT
               else
                 echo "has_update=true" >> $GITHUB_OUTPUT
-                CHANGES=$(git diff --name-only main..upstream/main 2>/dev/null || echo "")
+                CHANGES=$(git diff --name-only main..upstream/main 2>/dev/null || echo "none")
                 echo "changes=$CHANGES" >> $GITHUB_OUTPUT
               fi
             else
               echo "has_update=false" >> $GITHUB_OUTPUT
-              echo "changes=" >> $GITHUB_OUTPUT
+              echo "changes=none" >> $GITHUB_OUTPUT
             fi
           else
             echo "has_update=false" >> $GITHUB_OUTPUT
-            echo "changes=" >> $GITHUB_OUTPUT
+            echo "changes=none" >> $GITHUB_OUTPUT
             echo "警告：上游 main 分支不存在"
           fi
 
@@ -154,4 +154,8 @@ jobs:
       - name: Workflow 总结  
         run: |  
           echo "最终结果：has_update = ${{ steps.check-update.outputs.has_update || '未设置' }}"  
-          echo "最终结果：has_workflow_update = ${{ steps.check-workflow-update.outputs.has_workflow_update || '未设置' }}"
+          if [ "${{ steps.check-update.outputs.has_update }}" = "true" ]; then
+            echo "最终结果：has_workflow_update = ${{ steps.check-workflow-update.outputs.has_workflow_update || '未设置' }}"
+          else
+            echo "最终结果：has_workflow_update = 未检查（无更新）"
+          fi
