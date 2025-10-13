@@ -35,36 +35,40 @@ jobs:
       - name: 切换到 main 分支  
         run: git checkout main  
 
+      - name: 获取上游更新
+        run: git fetch upstream
+
       - name: 检查是否有更新  
         id: check-update  
         run: |  
-          git fetch upstream  
-          UPDATE_COUNT=$(git rev-list --count main..upstream.main)  
-          if [ "$UPDATE_COUNT" -gt 0 ]; then  
-            if git diff --quiet -w main..upstream.main; then  
-              echo "has_update=false" >> $GITHUB_OUTPUT  
-              echo "changes<<EOF" >> $GITHUB_OUTPUT  
-              echo "" >> $GITHUB_OUTPUT  
-              echo "EOF" >> $GITHUB_OUTPUT  
-            else  
-              echo "has_update=true" >> $GITHUB_OUTPUT  
-              CHANGES=$(git diff --name-only -w main..upstream.main)  
-              echo "changes<<EOF" >> $GITHUB_OUTPUT  
-              echo "$CHANGES" >> $GITHUB_OUTPUT  
-              echo "EOF" >> $GITHUB_OUTPUT  
-            fi  
-          else  
-            echo "has_update=false" >> $GITHUB_OUTPUT  
-            echo "changes<<EOF" >> $GITHUB_OUTPUT  
-            echo "" >> $GITHUB_OUTPUT  
-            echo "EOF" >> $GITHUB_OUTPUT  
-          fi  
+          # 检查上游main分支是否存在
+          if git show-ref --verify --quiet refs/remotes/upstream/main; then
+            UPDATE_COUNT=$(git rev-list --count main..upstream/main 2>/dev/null || echo "0")
+            if [ "$UPDATE_COUNT" -gt 0 ]; then
+              if git diff --quiet main..upstream/main 2>/dev/null; then
+                echo "has_update=false" >> $GITHUB_OUTPUT
+                echo "changes=" >> $GITHUB_OUTPUT
+              else
+                echo "has_update=true" >> $GITHUB_OUTPUT
+                CHANGES=$(git diff --name-only main..upstream/main 2>/dev/null || echo "")
+                echo "changes=$CHANGES" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "has_update=false" >> $GITHUB_OUTPUT
+              echo "changes=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "has_update=false" >> $GITHUB_OUTPUT
+            echo "changes=" >> $GITHUB_OUTPUT
+            echo "警告：上游 main 分支不存在"
+          fi
 
       - name: 检查上游更新是否包含 workflow 文件  
         if: steps.check-update.outputs.has_update == 'true'  
         id: check-workflow-update  
         run: |  
-          if echo "${{ steps.check-update.outputs.changes }}" | grep -q '\.github/workflows/'; then  
+          CHANGES="${{ steps.check-update.outputs.changes }}"
+          if echo "$CHANGES" | grep -q '\.github/workflows/'; then  
             echo "has_workflow_update=true" >> $GITHUB_OUTPUT  
           else  
             echo "has_workflow_update=false" >> $GITHUB_OUTPUT  
@@ -74,11 +78,17 @@ jobs:
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'false'  
         run: |  
           echo "正在执行：拉取上游代码并同步"  
-          set -e  
-          git fetch upstream  
+          set -e
+          
           # 识别所有上游新更新
-          ALL_COMMITS=($(git rev-list --reverse main..upstream.main))  
+          ALL_COMMITS=($(git rev-list --reverse main..upstream/main 2>/dev/null))  
+          if [ ${#ALL_COMMITS[@]} -eq 0 ]; then
+            echo "没有找到需要同步的提交"
+            exit 0
+          fi
+          
           echo "所有上游更新: ${ALL_COMMITS[*]}"  
+          
           # 过滤非空更新（消息不含"保持仓库活跃"）  
           NON_EMPTY_COMMITS=()  
           IGNORED_COMMITS=()  
@@ -90,18 +100,21 @@ jobs:
               NON_EMPTY_COMMITS+=("$commit")  
             fi  
           done  
+          
           echo "要应用的更新: ${NON_EMPTY_COMMITS[*]}"  
           echo "忽略的空更新: ${IGNORED_COMMITS[*]}"  
+          
           # 保存当前树 hash  
           OLD_TREE=$(git rev-parse HEAD)  
+          
           if [ ${#NON_EMPTY_COMMITS[@]} -gt 0 ]; then  
             for commit in "${NON_EMPTY_COMMITS[@]}"; do  
               if git cherry-pick --no-commit $commit; then  
                 if git diff --quiet --cached; then  
-                  git reset  
+                  git reset --hard
                   echo "跳过冗余/空更新 $commit"  
                 else  
-                  git commit -m " $(git log -1 --format=%s $commit) [$commit]"  
+                  git commit -m "$(git log -1 --format=%s $commit) [$commit]"  
                   echo "✅ 已应用更新 $commit"  
                 fi  
               else  
@@ -111,12 +124,14 @@ jobs:
               fi  
             done  
           fi  
+          
           # 如果无实际变化应用，添加空提交保持活跃  
           if [ "$OLD_TREE" = "$(git rev-parse HEAD)" ]; then  
             git commit --allow-empty -m "空修改，用于保持仓库活跃，防止自动签到失效"  
             echo "🟡 无更新，添加空提交保持活跃"  
           fi  
-          git push origin main --force-with-lease  
+          
+          git push origin main
           echo "✅ 已成功同步（应用了 ${#NON_EMPTY_COMMITS[@]} 个更新）"  
 
       - name: 提示手动更新（如果上游更新包含 workflow 文件）  
