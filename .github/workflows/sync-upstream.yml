@@ -1,6 +1,6 @@
 name: 自动更新并保持签到脚本活跃
 
-#这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
+这个脚本用于保持仓库活跃，防止actions因为仓库不活跃自动禁用。你可以不用管它
 
 on:
   schedule:
@@ -38,10 +38,16 @@ jobs:
         id: check-update  
         run: |  
           git fetch upstream  
-          CHANGES=$(git diff --name-only main..upstream/main)  
-          if [ -n "$CHANGES" ]; then  
-            echo "has_update=true" >> $GITHUB_OUTPUT  
-            echo "changes=$CHANGES" >> $GITHUB_OUTPUT  
+          UPDATE_COUNT=$(git rev-list --count main..upstream/main)  
+          if [ "$UPDATE_COUNT" -gt 0 ]; then  
+            if git diff --quiet main..upstream/main; then  
+              echo "has_update=false" >> $GITHUB_OUTPUT  
+              echo "changes=" >> $GITHUB_OUTPUT  
+            else  
+              echo "has_update=true" >> $GITHUB_OUTPUT  
+              CHANGES=$(git diff --name-only main..upstream/main)  
+              echo "changes=$CHANGES" >> $GITHUB_OUTPUT  
+            fi  
           else  
             echo "has_update=false" >> $GITHUB_OUTPUT  
             echo "changes=" >> $GITHUB_OUTPUT  
