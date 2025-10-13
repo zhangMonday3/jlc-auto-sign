@@ -18,7 +18,7 @@ jobs:
       - name: 检出仓库代码  
         uses: actions/checkout@v4  
         with:  
-          fetch-depth: 0  # 获取完整提交历史，便于 rebase  
+          fetch-depth: 0  # 获取完整历史，便于 rebase/cherry-pick  
 
       - name: 设置 Git 配置  
         run: |  
@@ -40,21 +40,16 @@ jobs:
         run: |  
           git fetch upstream  
           UPDATE_COUNT=$(git rev-list --count main..upstream/main)  
-          CHANGES=$(git diff --name-only -w main..upstream/main)  
-          echo "Debug: Update count = $UPDATE_COUNT"  
-          echo "Debug: Changed files (ignoring all whitespace) = '$CHANGES'"  
           if [ "$UPDATE_COUNT" -gt 0 ]; then  
             if git diff --quiet -w main..upstream/main; then  
-              echo "Debug: Diff quiet (no substantive changes, ignoring all whitespace), setting has_update=false"  
               echo "has_update=false" >> $GITHUB_OUTPUT  
               echo "changes=" >> $GITHUB_OUTPUT  
             else  
-              echo "Debug: Diff not quiet (substantive file changes detected), setting has_update=true"  
               echo "has_update=true" >> $GITHUB_OUTPUT  
+              CHANGES=$(git diff --name-only -w main..upstream/main)  
               echo "changes=$CHANGES" >> $GITHUB_OUTPUT  
             fi  
           else  
-            echo "Debug: No new commits, setting has_update=false"  
             echo "has_update=false" >> $GITHUB_OUTPUT  
             echo "changes=" >> $GITHUB_OUTPUT  
           fi  
@@ -72,23 +67,39 @@ jobs:
       - name: 拉取上游代码并同步（如果有更新）  
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'false'  
         run: |  
+          echo "Running: 拉取上游代码并同步"  
           set -e  
           git fetch upstream  
-          if git rebase upstream/main; then  
+          # 过滤出非空提交（忽略包含“保持仓库活跃”的消息）  
+          NON_EMPTY_COMMITS=$(git rev-list --reverse main..upstream/main --not --grep="保持仓库活跃")  
+          EMPTY_COMMITS=$(git rev-list --reverse main..upstream/main --grep="保持仓库活跃")  
+          echo "Debug: All upstream commits: $(git rev-list --reverse main..upstream/main)"  
+          echo "Debug: Non-empty commits to apply: $NON_EMPTY_COMMITS"  
+          echo "Debug: Ignored empty commits: $EMPTY_COMMITS"  
+          if [ -n "$NON_EMPTY_COMMITS" ]; then  
+            # Cherry-pick 非空提交  
+            for commit in $NON_EMPTY_COMMITS; do  
+              git cherry-pick "$commit" || {  
+                git cherry-pick --abort  
+                echo "⚠️ Cherry-pick 异常，执行空提交保持活跃"  
+                git commit --allow-empty -m "保持仓库活跃（更新失败回退）"  
+                git push origin main  
+                exit 1  
+              }  
+            done  
             git push origin main --force-with-lease  
-            echo "✅ 已成功更新最新代码"  
+            echo "✅ 已成功 cherry-pick 非空更新"  
           else  
-            git rebase --abort  
-            echo "⚠️ 更新异常，执行空提交保持活跃"  
-            git commit --allow-empty -m "保持仓库活跃（更新失败回退）"  
+            echo "⚠️ 上游只有空提交，忽略并保持活跃"  
+            git commit --allow-empty -m "保持仓库活跃（忽略上游空更新）"  
             git push origin main  
           fi  
 
       - name: 提示手动更新（如果上游更新包含 workflow 文件）  
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'true'  
         run: |  
+          echo "Running: 提示手动更新"  
           echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"  
-          # 直接空提交保持活跃，无需 pull（Actions 已 checkout 最新）  
           git commit --allow-empty -m "空修改，检测到有更新，请手动更新一下"  
           git push origin main  
           echo "🟢 已提交空修改保持仓库活跃"  
@@ -96,7 +107,12 @@ jobs:
       - name: 提交空修改（如果无更新）  
         if: steps.check-update.outputs.has_update == 'false'  
         run: |  
-          # 无需 pull（Actions 已 checkout 最新），直接空提交  
+          echo "Running: 提交空修改（如果无更新）"  
           git commit --allow-empty -m "空修改，用于保持仓库活跃，防止自动签到失效"  
           git push origin main  
-          echo "🟢 无更新，已提交空修改保持仓库活跃"
+          echo "🟢 无更新，已提交空修改保持仓库活跃"  
+
+      - name: Workflow 总结  
+        run: |  
+          echo "Final: has_update = ${{ steps.check-update.outputs.has_update || 'not set' }}"  
+          echo "Final: has_workflow_update = ${{ steps.check-workflow-update.outputs.has_workflow_update || 'not set' }}"
