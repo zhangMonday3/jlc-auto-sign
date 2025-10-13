@@ -40,12 +40,12 @@ jobs:
         run: |  
           git fetch upstream  
           UPDATE_COUNT=$(git rev-list --count main..upstream/main)  
-          CHANGES=$(git diff --name-only --ignore-space-change main..upstream/main)  
+          CHANGES=$(git diff --name-only -w main..upstream/main)  
           echo "Debug: Update count = $UPDATE_COUNT"  
-          echo "Debug: Changed files (ignoring space changes) = '$CHANGES'"  
+          echo "Debug: Changed files (ignoring all whitespace) = '$CHANGES'"  
           if [ "$UPDATE_COUNT" -gt 0 ]; then  
-            if git diff --quiet --ignore-space-change main..upstream/main; then  
-              echo "Debug: Diff quiet (no substantive changes, ignoring whitespace), setting has_update=false"  
+            if git diff --quiet -w main..upstream/main; then  
+              echo "Debug: Diff quiet (no substantive changes, ignoring all whitespace), setting has_update=false"  
               echo "has_update=false" >> $GITHUB_OUTPUT  
               echo "changes=" >> $GITHUB_OUTPUT  
             else  
@@ -88,8 +88,7 @@ jobs:
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'true'  
         run: |  
           echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"  
-          # 同时执行空提交保持活跃  
-          git pull origin main --rebase  
+          # 直接空提交保持活跃，无需 pull（Actions 已 checkout 最新）  
           git commit --allow-empty -m "空修改，检测到有更新，请手动更新一下"  
           git push origin main  
           echo "🟢 已提交空修改保持仓库活跃"  
@@ -97,7 +96,7 @@ jobs:
       - name: 提交空修改（如果无更新）  
         if: steps.check-update.outputs.has_update == 'false'  
         run: |  
-          git pull origin main --rebase  
+          # 无需 pull（Actions 已 checkout 最新），直接空提交  
           git commit --allow-empty -m "空修改，用于保持仓库活跃，防止自动签到失效"  
           git push origin main  
           echo "🟢 无更新，已提交空修改保持仓库活跃"
