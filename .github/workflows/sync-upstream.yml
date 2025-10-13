@@ -39,16 +39,16 @@ jobs:
         id: check-update  
         run: |  
           git fetch upstream  
-          UPDATE_COUNT=$(git rev-list --count main..upstream/main)  
+          UPDATE_COUNT=$(git rev-list --count main..upstream.main)  
           if [ "$UPDATE_COUNT" -gt 0 ]; then  
-            if git diff --quiet -w main..upstream/main; then  
+            if git diff --quiet -w main..upstream.main; then  
               echo "has_update=false" >> $GITHUB_OUTPUT  
               echo "changes<<EOF" >> $GITHUB_OUTPUT  
               echo "" >> $GITHUB_OUTPUT  
               echo "EOF" >> $GITHUB_OUTPUT  
             else  
               echo "has_update=true" >> $GITHUB_OUTPUT  
-              CHANGES=$(git diff --name-only -w main..upstream/main)  
+              CHANGES=$(git diff --name-only -w main..upstream.main)  
               echo "changes<<EOF" >> $GITHUB_OUTPUT  
               echo "$CHANGES" >> $GITHUB_OUTPUT  
               echo "EOF" >> $GITHUB_OUTPUT  
@@ -73,13 +73,13 @@ jobs:
       - name: 拉取上游代码并同步（如果有更新）  
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'false'  
         run: |  
-          echo "Running: 拉取上游代码并同步"  
+          echo "正在执行：拉取上游代码并同步"  
           set -e  
           git fetch upstream  
-          # 识别所有上游新提交  
-          ALL_COMMITS=($(git rev-list --reverse main..upstream/main))  
-          echo "Debug: All upstream commits: ${ALL_COMMITS[*]}"  
-          # 过滤非空提交（消息不含“保持仓库活跃”）  
+          # 识别所有上游新更新
+          ALL_COMMITS=($(git rev-list --reverse main..upstream.main))  
+          echo "所有上游更新: ${ALL_COMMITS[*]}"  
+          # 过滤非空更新（消息不含"保持仓库活跃"）  
           NON_EMPTY_COMMITS=()  
           IGNORED_COMMITS=()  
           for commit in "${ALL_COMMITS[@]}"; do  
@@ -90,8 +90,8 @@ jobs:
               NON_EMPTY_COMMITS+=("$commit")  
             fi  
           done  
-          echo "Debug: Non-empty commits to apply: ${NON_EMPTY_COMMITS[*]}"  
-          echo "Debug: Ignored empty commits: ${IGNORED_COMMITS[*]}"  
+          echo "要应用的更新: ${NON_EMPTY_COMMITS[*]}"  
+          echo "忽略的空更新: ${IGNORED_COMMITS[*]}"  
           # 保存当前树 hash  
           OLD_TREE=$(git rev-parse HEAD)  
           if [ ${#NON_EMPTY_COMMITS[@]} -gt 0 ]; then  
@@ -99,13 +99,13 @@ jobs:
               if git cherry-pick --no-commit $commit; then  
                 if git diff --quiet --cached; then  
                   git reset  
-                  echo "Skipped redundant/empty patch for commit $commit"  
+                  echo "跳过冗余/空更新 $commit"  
                 else  
-                  git commit -m "Cherry-pick: $(git log -1 --format=%s $commit) [$commit]"  
-                  echo "✅ Applied commit $commit"  
+                  git commit -m " $(git log -1 --format=%s $commit) [$commit]"  
+                  echo "✅ 已应用更新 $commit"  
                 fi  
               else  
-                echo "⚠️ Cherry-pick failed for $commit (possible conflict), aborting it"  
+                echo "⚠️ 挑选 $commit 失败（可能冲突），正在中止"  
                 git cherry-pick --abort  
                 # 继续下一个，不停止整个 sync  
               fi  
@@ -117,12 +117,12 @@ jobs:
             echo "🟡 无更新，添加空提交保持活跃"  
           fi  
           git push origin main --force-with-lease  
-          echo "✅ 已成功同步（应用了 ${#NON_EMPTY_COMMITS[@]} 个非空提交）"  
+          echo "✅ 已成功同步（应用了 ${#NON_EMPTY_COMMITS[@]} 个更新）"  
 
       - name: 提示手动更新（如果上游更新包含 workflow 文件）  
         if: steps.check-update.outputs.has_update == 'true' && steps.check-workflow-update.outputs.has_workflow_update == 'true'  
         run: |  
-          echo "Running: 提示手动更新"  
+          echo "正在执行：提示手动更新"  
           echo "⚠️ 上游更新包含 workflow 脚本内容，无法自动更新。请在你 fork 的仓库中找到 'Sync fork'按钮，手动点击更新。"  
           git commit --allow-empty -m "空修改，用于保持仓库活跃，检测到有更新，请手动更新一下"  
           git push origin main  
@@ -131,12 +131,12 @@ jobs:
       - name: 提交空修改（如果无更新）  
         if: steps.check-update.outputs.has_update == 'false'  
         run: |  
-          echo "Running: 提交空修改（如果无更新）"  
+          echo "正在执行：提交空修改（如果无更新）"  
           git commit --allow-empty -m "空修改，用于保持仓库活跃，防止自动签到失效"  
           git push origin main  
           echo "🟢 无更新，已提交空修改保持仓库活跃"  
 
       - name: Workflow 总结  
         run: |  
-          echo "Final: has_update = ${{ steps.check-update.outputs.has_update || 'not set' }}"  
-          echo "Final: has_workflow_update = ${{ steps.check-workflow-update.outputs.has_workflow_update || 'not set' }}"
+          echo "最终结果：has_update = ${{ steps.check-update.outputs.has_update || '未设置' }}"  
+          echo "最终结果：has_workflow_update = ${{ steps.check-workflow-update.outputs.has_workflow_update || '未设置' }}"
