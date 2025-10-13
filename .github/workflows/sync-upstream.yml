@@ -39,16 +39,21 @@ jobs:
         run: |  
           git fetch upstream  
           UPDATE_COUNT=$(git rev-list --count main..upstream/main)  
+          CHANGES=$(git diff --name-only main..upstream/main)  
+          echo "Debug: Update count = $UPDATE_COUNT"  
+          echo "Debug: Changed files = '$CHANGES'"  
           if [ "$UPDATE_COUNT" -gt 0 ]; then  
             if git diff --quiet main..upstream/main; then  
+              echo "Debug: Diff quiet (no file changes), setting has_update=false"  
               echo "has_update=false" >> $GITHUB_OUTPUT  
               echo "changes=" >> $GITHUB_OUTPUT  
             else  
+              echo "Debug: Diff not quiet (file changes detected), setting has_update=true"  
               echo "has_update=true" >> $GITHUB_OUTPUT  
-              CHANGES=$(git diff --name-only main..upstream/main)  
               echo "changes=$CHANGES" >> $GITHUB_OUTPUT  
             fi  
           else  
+            echo "Debug: No new commits, setting has_update=false"  
             echo "has_update=false" >> $GITHUB_OUTPUT  
             echo "changes=" >> $GITHUB_OUTPUT  
           fi  
