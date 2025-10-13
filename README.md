@@ -1,4 +1,4 @@
-# 嘉立创自动签到工具  
+# 嘉立创自动签到脚本
 *By zhangMonday*
 
 [立创开源平台](https://oshwhub.com/)
