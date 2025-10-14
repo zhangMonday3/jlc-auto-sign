@@ -775,7 +775,7 @@ def should_retry(merged_success):
 
 def process_single_account(username, password, account_index, total_accounts):
     """处理单个账号，包含重试机制，并合并多次尝试的最佳结果"""
-    max_retries = 1  # 最多重试1次
+    max_retries = 2  #最多重试2次（总共3次尝试）
     merged_result = {
         'account_index': account_index,
         'nickname': '未知',
