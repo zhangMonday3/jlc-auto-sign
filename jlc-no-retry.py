@@ -680,9 +680,10 @@ def sign_in_account(username, password, account_index, total_accounts):
                 result['oshwhub_status'] = '已签到过'
                 result['oshwhub_success'] = True
                 
-                # 即使已签到，也尝试点击礼包按钮
-                log(f"账号 {account_index} - 开始点击礼包按钮...")
-                click_gift_buttons(driver, account_index)
+                # 即使已签到，也尝试点击礼包按钮（仅当需要时）
+                if is_sunday() or is_last_day_of_month():
+                    log(f"账号 {account_index} - 开始点击礼包按钮...")
+                    click_gift_buttons(driver, account_index)
                 
             except:
                 # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
@@ -698,9 +699,10 @@ def sign_in_account(username, password, account_index, total_accounts):
                     # 等待签到完成
                     time.sleep(2)
                     
-                    # 6. 签到完成后点击7天好礼和月度好礼
-                    log(f"账号 {account_index} - 开始点击礼包按钮...")
-                    click_gift_buttons(driver, account_index)
+                    # 6. 签到完成后点击7天好礼和月度好礼（仅当需要时）
+                    if is_sunday() or is_last_day_of_month():
+                        log(f"账号 {account_index} - 开始点击礼包按钮...")
+                        click_gift_buttons(driver, account_index)
                     
                 except Exception as e:
                     log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
