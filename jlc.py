@@ -389,6 +389,8 @@ def click_gift_buttons(driver, account_index):
         # 等待一秒
         time.sleep(1)
         
+        log(f"账号 {account_index} - 开始点击礼包按钮...")
+        
         sunday = is_sunday()
         last_day = is_last_day_of_month()
 
@@ -679,7 +681,6 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
                 result['oshwhub_success'] = True
                 
                 # 即使已签到，也尝试点击礼包按钮
-                log(f"账号 {account_index} - 开始点击礼包按钮...")
                 click_gift_buttons(driver, account_index)
                 
             except:
@@ -697,7 +698,6 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
                     time.sleep(2)
                     
                     # 6. 签到完成后点击7天好礼和月度好礼
-                    log(f"账号 {account_index} - 开始点击礼包按钮...")
                     click_gift_buttons(driver, account_index)
                     
                 except Exception as e:
