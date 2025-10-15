@@ -158,6 +158,7 @@ class JLCClient:
         self.final_jindou = 0    # 签到后金豆数量
         self.jindou_reward = 0   # 本次获得金豆（通过差值计算）
         self.sign_status = "未知"  # 签到状态
+        self.has_reward = False  # 是否领取了额外奖励
         
     def send_request(self, url, method='GET'):
         """发送 API 请求"""
@@ -242,6 +243,7 @@ class JLCClient:
             else:
                 # 有奖励可领取，先领取奖励
                 log(f"账号 {self.account_index} - 有奖励可领取，先领取奖励")
+                self.has_reward = True
                 
                 # 领取奖励
                 if self.receive_voucher():
@@ -276,7 +278,10 @@ class JLCClient:
         """计算金豆差值"""
         self.jindou_reward = self.final_jindou - self.initial_jindou
         if self.jindou_reward > 0:
-            log(f"账号 {self.account_index} - 🎉 总金豆增加: {self.initial_jindou} → {self.final_jindou} (+{self.jindou_reward})")
+            reward_text = f" (+{self.jindou_reward})"
+            if self.has_reward:
+                reward_text += "（有奖励）"
+            log(f"账号 {self.account_index} - 🎉 总金豆增加: {self.initial_jindou} → {self.final_jindou}{reward_text}")
         elif self.jindou_reward == 0:
             log(f"账号 {self.account_index} - ⚠ 总金豆无变化，可能今天已签到过: {self.initial_jindou} → {self.final_jindou} (0)")
         else:
@@ -373,24 +378,31 @@ def is_last_day_of_month():
     return today.day == last_day.day
 
 def capture_reward_info(driver, account_index, gift_type):
-    """抓取并输出奖励信息"""
+    """抓取并输出奖励信息，返回礼包领取结果"""
     try:
         reward_elem = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.XPATH, '//p[contains(text(), "恭喜获取")]'))
         )
         reward_text = reward_elem.text.strip()
-        log(f"账号 {account_index} - 好礼领取结果：{reward_text}")
+        gift_name = "七日礼包" if gift_type == "7天" else "月度礼包"
+        log(f"账号 {account_index} - {gift_name}领取结果：{reward_text}")
+        return f"开源平台{gift_name}领取结果: {reward_text}"
     except Exception as e:
         log(f"账号 {account_index} - 已点击{gift_type}好礼，未获取到奖励信息(可能已领取过或未达到领取条件)，请自行前往开源平台查看。")
+        return None
 
 def click_gift_buttons(driver, account_index):
-    """根据日期条件点击7天好礼和月度好礼按钮，并抓取奖励信息"""
+    """根据日期条件点击7天好礼和月度好礼按钮，并抓取奖励信息，返回所有领取结果"""
+    reward_results = []
+    
     if not is_sunday() and not is_last_day_of_month():
-        return  # 静默不执行
+        return reward_results
 
     try:
         # 等待一秒
         time.sleep(1)
+        
+        log(f"账号 {account_index} - 开始点击礼包按钮...")
         
         sunday = is_sunday()
         last_day = is_last_day_of_month()
@@ -404,7 +416,9 @@ def click_gift_buttons(driver, account_index):
                 
                 # 等待1秒并抓取奖励信息
                 time.sleep(1)
-                capture_reward_info(driver, account_index, "7天")
+                reward_result = capture_reward_info(driver, account_index, "7天")
+                if reward_result:
+                    reward_results.append(reward_result)
                 
                 # 如果也是月底，刷新页面
                 if last_day:
@@ -423,13 +437,17 @@ def click_gift_buttons(driver, account_index):
                 
                 # 等待1秒并抓取奖励信息
                 time.sleep(1)
-                capture_reward_info(driver, account_index, "月度")
+                reward_result = capture_reward_info(driver, account_index, "月度")
+                if reward_result:
+                    reward_results.append(reward_result)
                 
             except Exception as e:
                 log(f"账号 {account_index} - ⚠ 无法点击月度好礼: {e}")
             
     except Exception as e:
         log(f"账号 {account_index} - ❌ 点击礼包按钮时出错: {e}")
+
+    return reward_results
 
 def get_user_nickname_from_api(driver, account_index):
     """通过API获取用户昵称"""
@@ -493,13 +511,15 @@ def sign_in_account(username, password, account_index, total_accounts):
         'initial_points': 0,      # 签到前积分
         'final_points': 0,        # 签到后积分
         'points_reward': 0,       # 本次获得积分
+        'reward_results': [],     # 礼包领取结果
         'jindou_status': '未知',
         'jindou_success': False,
         'initial_jindou': 0,
         'final_jindou': 0,
         'jindou_reward': 0,
+        'has_jindou_reward': False,  # 金豆是否有额外奖励
         'token_extracted': False,
-        'secretkey_extracted': False
+        'secretkey_extracted': False,
     }
 
     try:
@@ -680,10 +700,8 @@ def sign_in_account(username, password, account_index, total_accounts):
                 result['oshwhub_status'] = '已签到过'
                 result['oshwhub_success'] = True
                 
-                # 即使已签到，也尝试点击礼包按钮（仅当需要时）
-                if is_sunday() or is_last_day_of_month():
-                    log(f"账号 {account_index} - 开始点击礼包按钮...")
-                    click_gift_buttons(driver, account_index)
+                # 即使已签到，也尝试点击礼包按钮
+                result['reward_results'] = click_gift_buttons(driver, account_index)
                 
             except:
                 # 如果没有找到"已签到"元素，则尝试点击"立即签到"按钮
@@ -699,10 +717,8 @@ def sign_in_account(username, password, account_index, total_accounts):
                     # 等待签到完成
                     time.sleep(2)
                     
-                    # 6. 签到完成后点击7天好礼和月度好礼（仅当需要时）
-                    if is_sunday() or is_last_day_of_month():
-                        log(f"账号 {account_index} - 开始点击礼包按钮...")
-                        click_gift_buttons(driver, account_index)
+                    # 6. 签到完成后点击7天好礼和月度好礼
+                    result['reward_results'] = click_gift_buttons(driver, account_index)
                     
                 except Exception as e:
                     log(f"账号 {account_index} - ❌ 开源平台签到失败，未找到签到按钮: {e}")
@@ -754,6 +770,7 @@ def sign_in_account(username, password, account_index, total_accounts):
             result['initial_jindou'] = jlc_client.initial_jindou
             result['final_jindou'] = jlc_client.final_jindou
             result['jindou_reward'] = jlc_client.jindou_reward
+            result['has_jindou_reward'] = jlc_client.has_reward
             
             if jindou_success:
                 log(f"账号 {account_index} - ✅ 金豆签到流程完成")
@@ -847,12 +864,19 @@ def main():
         
         # 显示金豆变化
         if result['jindou_reward'] > 0:
-            log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (+{result['jindou_reward']})")
+            jindou_text = f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (+{result['jindou_reward']})"
+            if result['has_jindou_reward']:
+                jindou_text += "（有奖励）"
+            log(jindou_text)
             total_jindou_reward += result['jindou_reward']
         elif result['jindou_reward'] == 0 and result['initial_jindou'] > 0:
             log(f"  ├── 金豆变化: {result['initial_jindou']} → {result['final_jindou']} (0)")
         else:
             log(f"  ├── 金豆状态: 无法获取金豆信息")
+        
+        # 显示礼包领取结果
+        for reward_result in result['reward_results']:
+            log(f"  ├── {reward_result}")
         
         if result['oshwhub_success']:
             oshwhub_success_count += 1
