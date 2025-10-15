@@ -277,7 +277,7 @@ class JLCClient:
         if self.jindou_reward > 0:
             reward_text = f" (+{self.jindou_reward})"
             if self.has_reward:
-                reward_text += "（奖励）"
+                reward_text += "（有奖励）"
             log(f"账号 {self.account_index} - 🎉 总金豆增加: {self.initial_jindou} → {self.final_jindou}{reward_text}")
         elif self.jindou_reward == 0:
             log(f"账号 {self.account_index} - ⚠ 总金豆无变化，可能今天已签到过: {self.initial_jindou} → {self.final_jindou} (0)")
