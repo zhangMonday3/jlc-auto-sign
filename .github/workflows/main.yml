@@ -4,35 +4,100 @@ on:
   workflow_dispatch:  # 手动触发
   schedule:
     - cron: '0 02 * * *'  # 每天北京时间10点运行
-    # 在这里设置UTC运行时间，如果不知道怎么配置可以问AI
-    # 实际运行时间会比设置时间延迟一小时以内，取决于当时GitHub资源占用情况。
 
 jobs:
-  running:
+  # 第一个签到任务
+  running-1:
     runs-on: ubuntu-22.04
-
     steps:
       - name: '检出代码'
         uses: actions/checkout@v3
-
       - name: '设置Python环境'
         uses: actions/setup-python@v5
         with:
           python-version: 3.7
-
       - name: '设置时区为北京时间'
         run: |
           sudo timedatectl set-timezone Asia/Shanghai
           echo "当前时间: $(date)"
-
       - name: '安装依赖'
         run: |
           pip install --upgrade pip
           pip install -r ./requirements.txt
-
       - name: '准备Chrome驱动'
         uses: nanasess/setup-chromedriver@v2
-
-      - name: '进行签到流程(日志在这里看)'
+      - name: '进行签到流程(账号组1)'
         run: |
-          python ./jlc.py "${{ secrets.JLC_USERNAME }}" "${{ secrets.JLC_PASSWORD }}" "${{ secrets.ERROR }}"
+          python ./jlc.py "${{ secrets.JLC_USERNAME_1 }}" "${{ secrets.JLC_PASSWORD_1 }}" "${{ secrets.ERROR_1 }}"
+
+  # 第二个签到任务
+  running-2:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: '检出代码'
+        uses: actions/checkout@v3
+      - name: '设置Python环境'
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.7
+      - name: '设置时区为北京时间'
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          echo "当前时间: $(date)"
+      - name: '安装依赖'
+        run: |
+          pip install --upgrade pip
+          pip install -r ./requirements.txt
+      - name: '准备Chrome驱动'
+        uses: nanasess/setup-chromedriver@v2
+      - name: '进行签到流程(账号组2)'
+        run: |
+          python ./jlc.py "${{ secrets.JLC_USERNAME_2 }}" "${{ secrets.JLC_PASSWORD_2 }}" "${{ secrets.ERROR_2 }}"
+
+  # 第三个签到任务
+  running-3:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: '检出代码'
+        uses: actions/checkout@v3
+      - name: '设置Python环境'
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.7
+      - name: '设置时区为北京时间'
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          echo "当前时间: $(date)"
+      - name: '安装依赖'
+        run: |
+          pip install --upgrade pip
+          pip install -r ./requirements.txt
+      - name: '准备Chrome驱动'
+        uses: nanasess/setup-chromedriver@v2
+      - name: '进行签到流程(账号组3)'
+        run: |
+          python ./jlc.py "${{ secrets.JLC_USERNAME_3 }}" "${{ secrets.JLC_PASSWORD_3 }}" "${{ secrets.ERROR_3 }}"
+
+  # 第四个签到任务
+  running-4:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: '检出代码'
+        uses: actions/checkout@v3
+      - name: '设置Python环境'
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.7
+      - name: '设置时区为北京时间'
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          echo "当前时间: $(date)"
+      - name: '安装依赖'
+        run: |
+          pip install --upgrade pip
+          pip install -r ./requirements.txt
+      - name: '准备Chrome驱动'
+        uses: nanasess/setup-chromedriver@v2
+      - name: '进行签到流程(账号组4)'
+        run: |
+          python ./jlc.py "${{ secrets.JLC_USERNAME_4 }}" "${{ secrets.JLC_PASSWORD_4 }}" "${{ secrets.ERROR_4 }}"
