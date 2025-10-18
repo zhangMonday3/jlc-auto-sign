@@ -476,9 +476,108 @@ def get_user_nickname_from_api(driver, account_index):
         log(f"账号 {account_index} - ⚠ 获取用户昵称失败: {e}")
         return None
 
+def ensure_login_page(driver, account_index):
+    """确保进入登录页面，如果未检测到登录页面则重启浏览器"""
+    max_restarts = 5
+    restarts = 0
+    
+    while restarts < max_restarts:
+        try:
+            driver.get("https://oshwhub.com/sign_in")
+            log(f"账号 {account_index} - 已打开 JLC 签到页")
+            
+            time.sleep(5 + random.randint(2, 3))
+            current_url = driver.current_url
+
+            # 检查是否在登录页面
+            if "passport.jlc.com/login" in current_url:
+                log(f"账号 {account_index} - ✅ 检测到未登录状态")
+                return True
+            else:
+                restarts += 1
+                if restarts < max_restarts:
+                    # 静默重启浏览器
+                    driver.quit()
+                    
+                    # 重新初始化浏览器
+                    chrome_options = Options()
+                    chrome_options.add_argument("--headless=new")
+                    chrome_options.add_argument("--no-sandbox")
+                    chrome_options.add_argument("--disable-dev-shm-usage")
+                    chrome_options.add_argument("--disable-gpu")
+                    chrome_options.add_argument("--window-size=1920,1080")
+                    chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+                    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+                    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                    chrome_options.add_experimental_option('useAutomationExtension', False)
+
+                    caps = DesiredCapabilities.CHROME
+                    caps['goog:loggingPrefs'] = {'performance': 'ALL'}
+                    
+                    driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
+                    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                    
+                    # 静默等待后继续循环
+                    time.sleep(2)
+                else:
+                    log(f"账号 {account_index} - ❌ 重启浏览器{max_restarts}次后仍无法进入登录页面")
+                    return False
+                    
+        except Exception as e:
+            restarts += 1
+            if restarts < max_restarts:
+                try:
+                    driver.quit()
+                except:
+                    pass
+                
+                # 重新初始化浏览器
+                chrome_options = Options()
+                chrome_options.add_argument("--headless=new")
+                chrome_options.add_argument("--no-sandbox")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+                chrome_options.add_argument("--disable-gpu")
+                chrome_options.add_argument("--window-size=1920,1080")
+                chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+                chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                chrome_options.add_experimental_option('useAutomationExtension', False)
+
+                caps = DesiredCapabilities.CHROME
+                caps['goog:loggingPrefs'] = {'performance': 'ALL'}
+                
+                driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
+                driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                
+                time.sleep(2)
+            else:
+                log(f"账号 {account_index} - ❌ 重启浏览器{max_restarts}次后仍出现异常: {e}")
+                return False
+    
+    return False
+
 def sign_in_account(username, password, account_index, total_accounts, retry_count=0):
     """为单个账号执行完整的签到流程（包含重试机制）"""
     log(f"开始处理账号 {account_index}/{total_accounts}" + (f" (重试)" if retry_count > 0 else ""))
+    
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+
+    caps = DesiredCapabilities.CHROME
+    caps['goog:loggingPrefs'] = {'performance': 'ALL'}
+    
+    driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    wait = WebDriverWait(driver, 25)
     
     # 记录详细结果
     result = {
@@ -501,58 +600,15 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
         'retry_count': retry_count
     }
 
-    driver = None
-    wait = None
-
     try:
-        # 初始化浏览器选项（公共部分）
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument(f"--user-data-dir={tempfile.mkdtemp()}")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        caps = DesiredCapabilities.CHROME
-        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
-
-        # 循环尝试访问签到页，直到检测到未登录状态，最多重启5次（总尝试6次）
-        max_login_detect_retries = 6  # 首次 + 5重启
-        login_detected = False
-        for attempt in range(max_login_detect_retries):
-            if driver:
-                driver.quit()
-                log(f"账号 {account_index} - 未检测到未登录状态，重启浏览器 (尝试 {attempt + 1}/{max_login_detect_retries})")
-
-            driver = webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            wait = WebDriverWait(driver, 25)
-
-            # 1. 打开签到页
-            driver.get("https://oshwhub.com/sign_in")
-            log(f"账号 {account_index} - 已打开 JLC 签到页 (尝试 {attempt + 1}/{max_login_detect_retries})")
-            
-            time.sleep(5 + random.randint(2, 3))
-            current_url = driver.current_url
-
-            # 2. 检查是否检测到未登录状态
-            if "passport.jlc.com/login" in current_url:
-                log(f"账号 {account_index} - 检测到未登录状态，继续执行登录流程...")
-                login_detected = True
-                break
-            else:
-                log(f"账号 {account_index} - 未检测到未登录状态 (当前URL: {current_url})")
-
-        if not login_detected:
-            log(f"账号 {account_index} - ❌ 经过{max_login_detect_retries}次尝试，仍未检测到未登录状态，继续执行但可能失败")
-            result['oshwhub_status'] = '未检测到登录页'
+        # 1. 确保进入登录页面
+        if not ensure_login_page(driver, account_index):
+            result['oshwhub_status'] = '无法进入登录页'
             return result
 
-        # 3. 登录流程（已检测到未登录）
+        current_url = driver.current_url
+
+        # 2. 登录流程
         log(f"账号 {account_index} - 检测到未登录状态，正在执行登录流程...")
 
         try:
@@ -655,17 +711,17 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
         else:
             log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
 
-        # 4. 获取用户昵称
+        # 3. 获取用户昵称
         nickname = get_user_nickname_from_api(driver, account_index)
         if nickname:
             result['nickname'] = nickname
 
-        # 5. 获取签到前积分数量
+        # 4. 获取签到前积分数量
         log(f"账号 {account_index} - 获取签到前积分数量...")
         result['initial_points'] = get_oshwhub_points(driver, account_index)
         log(f"账号 {account_index} - 签到前积分: {result['initial_points']}")
 
-        # 6. 开源平台签到
+        # 5. 开源平台签到
         log(f"账号 {account_index} - 等待签到页加载...")
         time.sleep(5)
 
@@ -701,7 +757,7 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
                     # 等待签到完成
                     time.sleep(2)
                     
-                    # 7. 签到完成后点击7天好礼和月度好礼
+                    # 6. 签到完成后点击7天好礼和月度好礼
                     result['reward_results'] = click_gift_buttons(driver, account_index)
                     
                 except Exception as e:
@@ -714,12 +770,12 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
 
         time.sleep(3)
 
-        # 8. 获取签到后积分数量
+        # 7. 获取签到后积分数量
         log(f"账号 {account_index} - 获取签到后积分数量...")
         result['final_points'] = get_oshwhub_points(driver, account_index)
         log(f"账号 {account_index} - 签到后积分: {result['final_points']}")
 
-        # 9. 计算积分差值
+        # 8. 计算积分差值
         result['points_reward'] = result['final_points'] - result['initial_points']
         if result['points_reward'] > 0:
             log(f"账号 {account_index} - 🎉 总积分增加: {result['initial_points']} → {result['final_points']} (+{result['points_reward']})")
@@ -728,7 +784,7 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
         else:
             log(f"账号 {account_index} - ❗ 积分减少: {result['initial_points']} → {result['final_points']} ({result['points_reward']})")
 
-        # 10. 金豆签到流程
+        # 9. 金豆签到流程
         log(f"账号 {account_index} - 开始金豆签到流程...")
         driver.get("https://m.jlc.com/")
         log(f"账号 {account_index} - 已访问 m.jlc.com，等待页面加载...")
@@ -768,8 +824,7 @@ def sign_in_account(username, password, account_index, total_accounts, retry_cou
         log(f"账号 {account_index} - ❌ 程序执行错误: {e}")
         result['oshwhub_status'] = '执行异常'
     finally:
-        if driver:
-            driver.quit()
+        driver.quit()
         log(f"账号 {account_index} - 浏览器已关闭")
     
     return result
