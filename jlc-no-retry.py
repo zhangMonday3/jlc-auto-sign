@@ -519,7 +519,7 @@ def sign_in_account(username, password, account_index, total_accounts):
         'jindou_reward': 0,
         'has_jindou_reward': False,  # 金豆是否有额外奖励
         'token_extracted': False,
-        'secretkey_extracted': False,
+        'secretkey_extracted': False
     }
 
     try:
@@ -630,46 +630,9 @@ def sign_in_account(username, password, account_index, total_accounts):
                     log(f"账号 {account_index} - 成功跳转回签到页面")
                     break
                 
-                # 检查是否出现了"进入系统"按钮 - 使用CSS选择器
-                try:
-                    enter_system_btn = driver.find_element(By.CSS_SELECTOR, "button.base-button.w-full.el-button--primary")
-                    log(f"账号 {account_index} - 检测到'进入系统'按钮，正在点击...")
-                    enter_system_btn.click()
-                    log(f"账号 {account_index} - 已点击进入系统按钮，等待跳转...")
-                    time.sleep(5)
-                    
-                    # 点击后再次检查URL
-                    current_url = driver.current_url
-                    if "oshwhub.com" in current_url and "passport.jlc.com" not in current_url:
-                        log(f"账号 {account_index} - 通过进入系统按钮成功跳转")
-                        break
-                        
-                except Exception as e:
-                    # 没有找到进入系统按钮，继续等待
-                    pass
-                
                 time.sleep(2)
             else:
                 log(f"账号 {account_index} - ⚠ 跳转超时，但继续执行")
-
-            # 额外检查：如果仍然在登录页面，尝试再次点击进入系统
-            current_url = driver.current_url
-            if "passport.jlc.com" in current_url:
-                log(f"账号 {account_index} - 仍然在登录页面，尝试再次处理...")
-                try:
-                    # 使用CSS选择器定位进入系统按钮
-                    enter_system_btn = driver.find_element(By.CSS_SELECTOR, "button.base-button.w-full.el-button--primary")
-                    enter_system_btn.click()
-                    log(f"账号 {account_index} - 已点击进入系统按钮")
-                    time.sleep(5)
-                except:
-                    # 如果没有进入系统按钮，尝试刷新页面
-                    try:
-                        driver.refresh()
-                        time.sleep(5)
-                        log(f"账号 {account_index} - 已刷新页面")
-                    except:
-                        pass
 
         # 3. 获取用户昵称
         nickname = get_user_nickname_from_api(driver, account_index)
